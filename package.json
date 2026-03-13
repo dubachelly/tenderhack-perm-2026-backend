@@ -6,7 +6,8 @@
     "start": "tsx src/index.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "test:data": "tsx src/test-data-integrity.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.1",
