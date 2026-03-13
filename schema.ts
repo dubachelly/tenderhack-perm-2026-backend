@@ -55,7 +55,7 @@ export const contracts = pgTable(
       scale: 5,
     }),
     /** % снижения начальной цены */
-    reductionPercent: numeric("reduction_percent", { precision: 10, scale: 5 }),
+    reductionPercent: numeric("reduction_percent", { precision: 20, scale: 5 }),
     /** Ставка НДС (напр. "20%", "Без НДС") */
     vatRate: varchar("vat_rate", { length: 20 }),
     /** Дата заключения контракта */

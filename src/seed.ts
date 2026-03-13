@@ -8,7 +8,7 @@ import { sql } from "drizzle-orm";
 
 const DATA_DIR = path.resolve(__dirname, "..");
 
-const BATCH_SIZE = 1000;
+const BATCH_SIZE = 100;
 
 async function batchInsert<T extends Record<string, unknown>>(
   table: Parameters<typeof db.insert>[0],
@@ -70,7 +70,7 @@ function num(value: unknown): string | null {
   return isNaN(n) ? null : String(n);
 }
 
-async function seedSte() {
+async function seedSte(): Promise<Set<number>> {
   console.log("Reading СТЕ xlsx...");
   const wb = XLSX.readFile(path.join(DATA_DIR, "TenderHack_СТЕ_20260313.xlsx"), {
     cellDates: false,
@@ -96,9 +96,10 @@ async function seedSte() {
 
   console.log(`Loaded ${data.length} СТЕ records`);
   await batchInsert(ste, data, "Inserting СТЕ");
+  return new Set(data.map((d) => d.id));
 }
 
-async function seedContracts() {
+async function seedContracts(validSteIds: Set<number>) {
   console.log("Reading Контракты xlsx...");
   const wb = XLSX.readFile(path.join(DATA_DIR, "TenderHack_Контракты_20260313.xlsx"), {
     cellDates: false,
@@ -152,9 +153,10 @@ async function seedContracts() {
     }
 
     const steId = r[14] != null ? parseInt(String(r[14])) : null;
+    const resolvedSteId = steId && !isNaN(steId) && validSteIds.has(steId) ? steId : null;
     items.push({
       contractId,
-      steId: steId && !isNaN(steId) ? steId : null,
+      steId: resolvedSteId,
       steItemName: str(r[15]),
       quantity: num(r[1]),
       unit: str(r[2]),
@@ -172,8 +174,8 @@ async function seedContracts() {
 async function main() {
   console.log("Starting seed...");
   try {
-    await seedSte();
-    await seedContracts();
+    const validSteIds = await seedSte();
+    await seedContracts(validSteIds);
     console.log("Seed complete!");
   } catch (err) {
     console.error("Seed failed:", err);
