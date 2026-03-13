@@ -171,11 +171,24 @@ async function seedContracts(validSteIds: Set<number>) {
   await batchInsert(contractItems, items, "Inserting contract items");
 }
 
+async function buildSearchVectors() {
+  console.log("Building search_vector for СТЕ...");
+  await db.execute(sql`
+    UPDATE ste SET search_vector =
+      setweight(to_tsvector('russian', coalesce(name, '')), 'A') ||
+      setweight(to_tsvector('russian',
+        coalesce(replace(replace(characteristics, ':', ' '), ';', ' '), '')
+      ), 'B')
+  `);
+  console.log("search_vector built.");
+}
+
 async function main() {
   console.log("Starting seed...");
   try {
     const validSteIds = await seedSte();
     await seedContracts(validSteIds);
+    await buildSearchVectors();
     console.log("Seed complete!");
   } catch (err) {
     console.error("Seed failed:", err);

@@ -8,8 +8,15 @@ import {
   varchar,
   index,
   foreignKey,
+  customType,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+
+const tsvectorType = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 // ─── СТЕ (Стандартизированная товарная единица) ───────────────────────────────
 
@@ -29,8 +36,14 @@ export const ste = pgTable(
      * Хранится как строка вида "Ключ1:Значение1;Ключ2:Значение2;..."
      */
     characteristics: text("characteristics"),
+    /** Вектор полнотекстового поиска: name (вес A) + characteristics (вес B) */
+    searchVector: tsvectorType("search_vector"),
   },
-  (t) => [index("ste_name_idx").on(t.name), index("ste_category_idx").on(t.category)],
+  (t) => [
+    index("ste_name_idx").on(t.name),
+    index("ste_category_idx").on(t.category),
+    index("ste_search_vector_idx").using("gin", t.searchVector),
+  ],
 );
 
 // ─── Контракты (заголовок контракта) ─────────────────────────────────────────
