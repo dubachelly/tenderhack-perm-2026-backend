@@ -10,6 +10,7 @@ import {
   index,
   foreignKey,
   customType,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -161,16 +162,19 @@ export const applicationQueries = pgTable("application_queries", {
   queryText: text("query_text").notNull(),
 });
 
-export const applicationQueryStes = pgTable("application_query_stes", {
-  id: serial("id").primaryKey(),
-  queryId: integer("query_id")
-    .notNull()
-    .references(() => applicationQueries.id, { onDelete: "cascade" }),
-  steId: bigint("ste_id", { mode: "number" })
-    .notNull()
-    .references(() => ste.id),
-  nameMatchPercent: numeric("name_match_percent", { precision: 5, scale: 2 }).notNull(),
-});
+export const applicationQueryStes = pgTable(
+  "application_query_stes",
+  {
+    queryId: integer("query_id")
+      .notNull()
+      .references(() => applicationQueries.id, { onDelete: "cascade" }),
+    steId: bigint("ste_id", { mode: "number" })
+      .notNull()
+      .references(() => ste.id),
+    nameMatchPercent: numeric("name_match_percent", { precision: 5, scale: 2 }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.queryId, t.steId] })],
+);
 
 export const applicationsRelations = relations(applications, ({ many }) => ({
   queries: many(applicationQueries),

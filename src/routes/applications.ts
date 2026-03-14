@@ -63,7 +63,6 @@ router.get("/:id", async (req, res) => {
       queryIds.length > 0
         ? await db
             .select({
-              id: applicationQueryStes.id,
               queryId: applicationQueryStes.queryId,
               steId: applicationQueryStes.steId,
               nameMatchPercent: applicationQueryStes.nameMatchPercent,
@@ -173,6 +172,14 @@ router.post("/:appId/queries/:queryId/stes", async (req, res) => {
       .from(applicationQueries)
       .where(eq(applicationQueries.id, queryId));
     if (!query) return res.status(404).json({ error: "Query not found" });
+
+    const [existing] = await db
+      .select()
+      .from(applicationQueryStes)
+      .where(
+        sql`${applicationQueryStes.queryId} = ${queryId} AND ${applicationQueryStes.steId} = ${steId}`
+      );
+    if (existing) return res.status(409).json({ error: "STE already linked to this query" });
 
     const [link] = await db
       .insert(applicationQueryStes)
