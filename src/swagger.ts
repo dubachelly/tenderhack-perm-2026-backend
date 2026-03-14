@@ -453,6 +453,51 @@ export const swaggerDocument: OpenAPIV3.Document = {
 			},
 		},
 		"/applications/{appId}/queries/{queryId}": {
+			patch: {
+				tags: ["Applications"],
+				summary: "Изменить текст запроса",
+				parameters: [
+					{
+						name: "appId",
+						in: "path",
+						required: true,
+						schema: { type: "integer" },
+					},
+					{
+						name: "queryId",
+						in: "path",
+						required: true,
+						schema: { type: "integer" },
+					},
+				],
+				requestBody: {
+					required: true,
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["queryText"],
+								properties: {
+									queryText: { type: "string" },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					"200": {
+						description: "Обновлённый запрос",
+						content: {
+							"application/json": {
+								schema: { $ref: "#/components/schemas/ApplicationQuery" },
+							},
+						},
+					},
+					"400": errorResponse,
+					"404": errorResponse,
+					"500": errorResponse,
+				},
+			},
 			delete: {
 				tags: ["Applications"],
 				summary: "Удалить запрос из заявки",

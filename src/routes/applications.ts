@@ -175,6 +175,31 @@ router.post("/:id/queries", async (req, res) => {
 	}
 });
 
+// PATCH /applications/:appId/queries/:queryId
+router.patch("/:appId/queries/:queryId", async (req, res) => {
+	try {
+		const appId = parseInt(req.params.appId);
+		const queryId = parseInt(req.params.queryId);
+		if (isNaN(appId) || isNaN(queryId))
+			return res.status(400).json({ error: "Invalid id" });
+
+		const { queryText } = req.body as { queryText?: string };
+		if (!queryText)
+			return res.status(400).json({ error: "queryText is required" });
+
+		const [updated] = await db
+			.update(applicationQueries)
+			.set({ queryText })
+			.where(eq(applicationQueries.id, queryId))
+			.returning();
+
+		if (!updated) return res.status(404).json({ error: "Not found" });
+		res.json(updated);
+	} catch (err) {
+		res.status(500).json({ error: String(err) });
+	}
+});
+
 // DELETE /applications/:appId/queries/:queryId
 router.delete("/:appId/queries/:queryId", async (req, res) => {
 	try {
