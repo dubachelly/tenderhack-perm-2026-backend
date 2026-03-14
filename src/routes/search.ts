@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 const router = Router();
 
 // GET /search/items?q=мешок+мусорный+20+литров&page=1&limit=50
-// Возвращает список СТЕ, каждая с вложенным массивом contract_items
+// Возвращает список всех СТЕ по запросу (включая без контрактов), contract_ids — массив id контрактов
 router.get("/items", async (req, res) => {
 	try {
 		const q = (req.query.q as string)?.trim();
@@ -27,19 +27,12 @@ router.get("/items", async (req, res) => {
           s.manufacturer    AS ste_manufacturer,
           s.characteristics AS ste_characteristics,
           ts_rank(s.search_vector, plainto_tsquery('russian', ${q})) AS rank,
-          json_agg(
-            json_build_object(
-              'id',           ci.id,
-              'contract_id',  ci.contract_id,
-              'ste_item_name', ci.ste_item_name,
-              'quantity',     ci.quantity,
-              'unit',         ci.unit,
-              'unit_price',   ci.unit_price
-            )
-            ORDER BY ci.id
-          ) AS contracts
+          COALESCE(
+            array_agg(DISTINCT ci.contract_id) FILTER (WHERE ci.contract_id IS NOT NULL),
+            '{}'
+          ) AS contract_ids
         FROM ste s
-        INNER JOIN contract_items ci ON ci.ste_id = s.id
+        LEFT JOIN contract_items ci ON ci.ste_id = s.id
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, rank
         ORDER BY rank DESC
@@ -48,7 +41,6 @@ router.get("/items", async (req, res) => {
 			db.execute(sql`
         SELECT count(DISTINCT s.id)::int AS count
         FROM ste s
-        INNER JOIN contract_items ci ON ci.ste_id = s.id
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
       `),
 		]);
@@ -56,6 +48,44 @@ router.get("/items", async (req, res) => {
 		const total = (countResult.rows[0] as { count: number }).count;
 
 		res.json({ data: rows.rows, total, page, limit });
+	} catch (err) {
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// GET /search/ste/:steId/contracts
+// Возвращает список контрактов с данным СТЕ
+router.get("/ste/:steId/contracts", async (req, res) => {
+	try {
+		const steId = parseInt(req.params.steId);
+		if (isNaN(steId)) return res.status(400).json({ error: "invalid steId" });
+
+		const rows = await db.execute(sql`
+      SELECT
+        c.id                          AS contract_id,
+        c.procurement_name,
+        c.procurement_method,
+        c.initial_contract_value,
+        c.contract_value_after_signing,
+        c.reduction_percent,
+        c.vat_rate,
+        c.contract_signing_date,
+        c.buyer_inn,
+        c.buyer_region,
+        c.supplier_inn,
+        c.supplier_region,
+        ci.id                         AS item_id,
+        ci.ste_item_name,
+        ci.quantity,
+        ci.unit,
+        ci.unit_price
+      FROM contract_items ci
+      JOIN contracts c ON c.id = ci.contract_id
+      WHERE ci.ste_id = ${steId}
+      ORDER BY c.id, ci.id
+    `);
+
+		res.json({ data: rows.rows });
 	} catch (err) {
 		res.status(500).json({ error: String(err) });
 	}

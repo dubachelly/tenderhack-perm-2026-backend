@@ -556,7 +556,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 		"/search/items": {
 			get: {
 				tags: ["Search"],
-				summary: "Полнотекстовый поиск позиций контрактов по СТЕ",
+				summary: "Полнотекстовый поиск СТЕ (включая без контрактов)",
 				parameters: paginatedQuery([
 					{
 						name: "q",
@@ -570,6 +570,40 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					"200": paginatedResponse({
 						$ref: "#/components/schemas/SearchSteGroup",
 					}),
+					"400": errorResponse,
+					"500": errorResponse,
+				},
+			},
+		},
+		"/search/ste/{steId}/contracts": {
+			get: {
+				tags: ["Search"],
+				summary: "Список контрактов, содержащих данную СТЕ",
+				parameters: [
+					{
+						name: "steId",
+						in: "path",
+						required: true,
+						schema: { type: "integer" },
+					},
+				],
+				responses: {
+					"200": {
+						description: "Контракты с позициями для данной СТЕ",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										data: {
+											type: "array",
+											items: { $ref: "#/components/schemas/SteContractRow" },
+										},
+									},
+								},
+							},
+						},
+					},
 					"400": errorResponse,
 					"500": errorResponse,
 				},
@@ -708,21 +742,10 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					},
 				],
 			},
-			SearchContractItem: {
-				type: "object",
-				properties: {
-					id: { type: "integer" },
-					contract_id: { type: "integer" },
-					ste_item_name: { type: "string", nullable: true },
-					quantity: { type: "string", nullable: true },
-					unit: { type: "string", nullable: true },
-					unit_price: { type: "string", nullable: true },
-				},
-			},
 			SearchSteGroup: {
 				type: "object",
 				description:
-					"СТЕ с вложенным списком контрактов, в которых она встречается",
+					"СТЕ с массивом id контрактов, в которых она встречается (пустой массив если контрактов нет)",
 				properties: {
 					ste_id: { type: "integer" },
 					ste_name: { type: "string", nullable: true },
@@ -733,10 +756,34 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						type: "number",
 						description: "Релевантность полнотекстового поиска",
 					},
-					contracts: {
+					contract_ids: {
 						type: "array",
-						items: { $ref: "#/components/schemas/SearchContractItem" },
+						items: { type: "integer" },
+						description: "Массив id контрактов, содержащих данную СТЕ",
 					},
+				},
+			},
+			SteContractRow: {
+				type: "object",
+				description: "Строка контракта с данными контракта и позиции СТЕ",
+				properties: {
+					contract_id: { type: "integer" },
+					procurement_name: { type: "string" },
+					procurement_method: { type: "string", nullable: true },
+					initial_contract_value: { type: "string", nullable: true },
+					contract_value_after_signing: { type: "string", nullable: true },
+					reduction_percent: { type: "string", nullable: true },
+					vat_rate: { type: "string", nullable: true },
+					contract_signing_date: { type: "string", format: "date-time", nullable: true },
+					buyer_inn: { type: "string", nullable: true },
+					buyer_region: { type: "string", nullable: true },
+					supplier_inn: { type: "string", nullable: true },
+					supplier_region: { type: "string", nullable: true },
+					item_id: { type: "integer" },
+					ste_item_name: { type: "string", nullable: true },
+					quantity: { type: "string", nullable: true },
+					unit: { type: "string", nullable: true },
+					unit_price: { type: "string", nullable: true },
 				},
 			},
 		},
