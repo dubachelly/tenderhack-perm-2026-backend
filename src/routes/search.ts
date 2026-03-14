@@ -6,12 +6,17 @@ const router = Router();
 
 function parseMultiParam(val: unknown): string[] | null {
 	const arr = Array.isArray(val) ? val : val ? [val] : [];
-	const filtered = arr.filter((v): v is string => typeof v === "string" && v.length > 0);
+	const filtered = arr.filter(
+		(v): v is string => typeof v === "string" && v.length > 0,
+	);
 	return filtered.length > 0 ? filtered : null;
 }
 
 function inCondition(column: SQL, values: string[]): SQL {
-	return sql`${column} = ANY(ARRAY[${sql.join(values.map((v) => sql`${v}`), sql`, `)}])`;
+	return sql`${column} = ANY(ARRAY[${sql.join(
+		values.map((v) => sql`${v}`),
+		sql`, `,
+	)}])`;
 }
 
 // GET /search/items?q=...&page=1&limit=50&supplier_region=...&period_from=YYYY-MM-DD&period_to=YYYY-MM-DD&category=...&procurement_method=...
@@ -35,31 +40,42 @@ router.get("/items", async (req, res) => {
 		const categories = parseMultiParam(req.query.category);
 		const procurementMethods = parseMultiParam(req.query.procurement_method);
 
-		const hasContractFilters = supplierRegions || periodFrom || periodTo || procurementMethods;
-
 		// Filters on ste table
 		const steExtraConditions: SQL[] = [];
-		if (categories) steExtraConditions.push(inCondition(sql`s.category`, categories));
+		if (categories)
+			steExtraConditions.push(inCondition(sql`s.category`, categories));
 
 		// Filters on contracts table
 		const contractConditions: SQL[] = [];
-		if (supplierRegions) contractConditions.push(inCondition(sql`c.supplier_region`, supplierRegions));
-		if (periodFrom) contractConditions.push(sql`c.contract_signing_date >= ${periodFrom}::date`);
-		if (periodTo) contractConditions.push(sql`c.contract_signing_date <= ${periodTo}::date`);
-		if (procurementMethods) contractConditions.push(inCondition(sql`c.procurement_method`, procurementMethods));
+		if (supplierRegions)
+			contractConditions.push(
+				inCondition(sql`c.supplier_region`, supplierRegions),
+			);
+		if (periodFrom)
+			contractConditions.push(
+				sql`c.contract_signing_date >= ${periodFrom}::date`,
+			);
+		if (periodTo)
+			contractConditions.push(
+				sql`c.contract_signing_date <= ${periodTo}::date`,
+			);
+		if (procurementMethods)
+			contractConditions.push(
+				inCondition(sql`c.procurement_method`, procurementMethods),
+			);
 
-		const steWhere = steExtraConditions.length > 0
-			? sql` AND ${sql.join(steExtraConditions, sql` AND `)}`
-			: sql``;
+		const steWhere =
+			steExtraConditions.length > 0
+				? sql` AND ${sql.join(steExtraConditions, sql` AND `)}`
+				: sql``;
 
-		const contractWhere = contractConditions.length > 0
-			? sql` AND ${sql.join(contractConditions, sql` AND `)}`
-			: sql``;
+		// Contract filters go into JOIN ON so STEs without matching contracts still appear (with empty contract_ids)
+		const contractOnExtra =
+			contractConditions.length > 0
+				? sql` AND ${sql.join(contractConditions, sql` AND `)}`
+				: sql``;
 
-		// When contract filters are active, use INNER JOIN so only STEs with matching contracts are returned
-		const contractJoin = hasContractFilters
-			? sql`JOIN contract_items ci ON ci.ste_id = s.id JOIN contracts c ON c.id = ci.contract_id`
-			: sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id`;
+		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id${contractOnExtra}`;
 
 		const [rows, countResult] = await Promise.all([
 			db.execute(sql`
@@ -78,7 +94,6 @@ router.get("/items", async (req, res) => {
         ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
           ${steWhere}
-          ${contractWhere}
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, rank
         ORDER BY rank DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -89,12 +104,10 @@ router.get("/items", async (req, res) => {
         ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
           ${steWhere}
-          ${contractWhere}
       `),
 		]);
 
 		const total = (countResult.rows[0] as { count: number }).count;
-
 		res.json({ data: rows.rows, total, page, limit });
 	} catch (err) {
 		res.status(500).json({ error: String(err) });
@@ -116,15 +129,25 @@ router.get("/ste/:steId/contracts", async (req, res) => {
 		const procurementMethods = parseMultiParam(req.query.procurement_method);
 
 		const extraConditions: SQL[] = [];
-		if (supplierRegions) extraConditions.push(inCondition(sql`c.supplier_region`, supplierRegions));
-		if (periodFrom) extraConditions.push(sql`c.contract_signing_date >= ${periodFrom}::date`);
-		if (periodTo) extraConditions.push(sql`c.contract_signing_date <= ${periodTo}::date`);
-		if (categories) extraConditions.push(inCondition(sql`s.category`, categories));
-		if (procurementMethods) extraConditions.push(inCondition(sql`c.procurement_method`, procurementMethods));
+		if (supplierRegions)
+			extraConditions.push(
+				inCondition(sql`c.supplier_region`, supplierRegions),
+			);
+		if (periodFrom)
+			extraConditions.push(sql`c.contract_signing_date >= ${periodFrom}::date`);
+		if (periodTo)
+			extraConditions.push(sql`c.contract_signing_date <= ${periodTo}::date`);
+		if (categories)
+			extraConditions.push(inCondition(sql`s.category`, categories));
+		if (procurementMethods)
+			extraConditions.push(
+				inCondition(sql`c.procurement_method`, procurementMethods),
+			);
 
-		const extraWhere = extraConditions.length > 0
-			? sql` AND ${sql.join(extraConditions, sql` AND `)}`
-			: sql``;
+		const extraWhere =
+			extraConditions.length > 0
+				? sql` AND ${sql.join(extraConditions, sql` AND `)}`
+				: sql``;
 
 		// Join ste only when category filter is needed
 		const steJoin = categories ? sql`JOIN ste s ON s.id = ci.ste_id` : sql``;

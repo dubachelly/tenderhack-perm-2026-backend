@@ -33,13 +33,28 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /ste/categories — список уникальных категорий
-router.get("/categories", async (_req, res) => {
+// GET /ste/categories?query= — список уникальных категорий (с опциональным полнотекстовым поиском по имени СТЕ)
+router.get("/categories", async (req, res) => {
   try {
-    const rows = await db
-      .selectDistinct({ category: ste.category })
-      .from(ste)
-      .orderBy(ste.category);
+    const query = (req.query.query as string)?.trim();
+
+    let rows: { category: string | null }[];
+    if (query) {
+      const result = await db.execute(sql`
+        SELECT DISTINCT category
+        FROM ste
+        WHERE search_vector @@ plainto_tsquery('russian', ${query})
+          AND category IS NOT NULL
+        ORDER BY category
+      `);
+      rows = result.rows as { category: string | null }[];
+    } else {
+      rows = await db
+        .selectDistinct({ category: ste.category })
+        .from(ste)
+        .orderBy(ste.category);
+    }
+
     res.json(rows.map((r) => r.category).filter(Boolean));
   } catch (err) {
     res.status(500).json({ error: String(err) });

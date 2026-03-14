@@ -90,6 +90,15 @@ export const swaggerDocument: OpenAPIV3.Document = {
 			get: {
 				tags: ["STE"],
 				summary: "Список уникальных категорий СТЕ",
+				parameters: [
+					{
+						name: "query",
+						in: "query",
+						required: false,
+						description: "Полнотекстовый поиск по имени СТЕ — вернёт только категории из найденных СТЕ",
+						schema: { type: "string" },
+					},
+				],
 				responses: {
 					"200": {
 						description: "OK",
@@ -622,9 +631,23 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					},
 				]),
 				responses: {
-					"200": paginatedResponse({
-						$ref: "#/components/schemas/SearchSteGroup",
-					}),
+					"200": {
+						description: "OK",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										data: { type: "array", items: { $ref: "#/components/schemas/SearchSteGroup" } },
+										total: { type: "integer" },
+										page: { type: "integer" },
+										limit: { type: "integer" },
+										categories: { type: "array", items: { type: "string" }, description: "Уникальные категории из текущей страницы результатов" },
+									},
+								},
+							},
+						},
+					},
 					"400": errorResponse,
 					"500": errorResponse,
 				},
