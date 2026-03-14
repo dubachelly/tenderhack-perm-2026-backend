@@ -6,6 +6,7 @@ import {
   timestamp,
   serial,
   varchar,
+  integer,
   index,
   foreignKey,
   customType,
@@ -141,6 +142,57 @@ export const contractItemsRelations = relations(contractItems, ({ one }) => ({
 
 export const steRelations = relations(ste, ({ many }) => ({
   contractItems: many(contractItems),
+  applicationQueryStes: many(applicationQueryStes),
+}));
+
+// ─── Заявки ───────────────────────────────────────────────────────────────────
+
+export const applications = pgTable("applications", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const applicationQueries = pgTable("application_queries", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id")
+    .notNull()
+    .references(() => applications.id, { onDelete: "cascade" }),
+  queryText: text("query_text").notNull(),
+});
+
+export const applicationQueryStes = pgTable("application_query_stes", {
+  id: serial("id").primaryKey(),
+  queryId: integer("query_id")
+    .notNull()
+    .references(() => applicationQueries.id, { onDelete: "cascade" }),
+  steId: bigint("ste_id", { mode: "number" })
+    .notNull()
+    .references(() => ste.id),
+  nameMatchPercent: numeric("name_match_percent", { precision: 5, scale: 2 }).notNull(),
+});
+
+export const applicationsRelations = relations(applications, ({ many }) => ({
+  queries: many(applicationQueries),
+}));
+
+export const applicationQueriesRelations = relations(applicationQueries, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [applicationQueries.applicationId],
+    references: [applications.id],
+  }),
+  stes: many(applicationQueryStes),
+}));
+
+export const applicationQueryStesRelations = relations(applicationQueryStes, ({ one }) => ({
+  query: one(applicationQueries, {
+    fields: [applicationQueryStes.queryId],
+    references: [applicationQueries.id],
+  }),
+  ste: one(ste, {
+    fields: [applicationQueryStes.steId],
+    references: [ste.id],
+  }),
 }));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -153,3 +205,12 @@ export type NewContract = typeof contracts.$inferInsert;
 
 export type ContractItem = typeof contractItems.$inferSelect;
 export type NewContractItem = typeof contractItems.$inferInsert;
+
+export type Application = typeof applications.$inferSelect;
+export type NewApplication = typeof applications.$inferInsert;
+
+export type ApplicationQuery = typeof applicationQueries.$inferSelect;
+export type NewApplicationQuery = typeof applicationQueries.$inferInsert;
+
+export type ApplicationQuerySte = typeof applicationQueryStes.$inferSelect;
+export type NewApplicationQuerySte = typeof applicationQueryStes.$inferInsert;

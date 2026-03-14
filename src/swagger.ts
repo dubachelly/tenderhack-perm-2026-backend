@@ -161,6 +161,156 @@ export const swaggerDocument: OpenAPIV3.Document = {
       },
     },
 
+    // ─── Applications ───────────────────────────────────────────────────────────
+    "/applications": {
+      post: {
+        tags: ["Applications"],
+        summary: "Создать заявку",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name"],
+                properties: {
+                  name: { type: "string" },
+                  queries: { type: "array", items: { type: "string" } },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Created", content: { "application/json": { schema: { $ref: "#/components/schemas/Application" } } } },
+          "400": errorResponse,
+          "500": errorResponse,
+        },
+      },
+      get: {
+        tags: ["Applications"],
+        summary: "Список заявок с пагинацией",
+        parameters: paginatedQuery(),
+        responses: {
+          "200": paginatedResponse({ $ref: "#/components/schemas/Application" }),
+          "500": errorResponse,
+        },
+      },
+    },
+    "/applications/{id}": {
+      get: {
+        tags: ["Applications"],
+        summary: "Заявка со всеми запросами и привязанными СТЕ",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": { description: "OK", content: { "application/json": { schema: { $ref: "#/components/schemas/ApplicationFull" } } } },
+          "400": errorResponse,
+          "404": errorResponse,
+          "500": errorResponse,
+        },
+      },
+      delete: {
+        tags: ["Applications"],
+        summary: "Удалить заявку (каскад)",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": { description: "OK", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "400": errorResponse,
+          "404": errorResponse,
+          "500": errorResponse,
+        },
+      },
+    },
+    "/applications/{id}/queries": {
+      post: {
+        tags: ["Applications"],
+        summary: "Добавить запрос в заявку",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["queryText"],
+                properties: { queryText: { type: "string" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Created", content: { "application/json": { schema: { $ref: "#/components/schemas/ApplicationQuery" } } } },
+          "400": errorResponse,
+          "404": errorResponse,
+          "500": errorResponse,
+        },
+      },
+    },
+    "/applications/{appId}/queries/{queryId}": {
+      delete: {
+        tags: ["Applications"],
+        summary: "Удалить запрос из заявки",
+        parameters: [
+          { name: "appId", in: "path", required: true, schema: { type: "integer" } },
+          { name: "queryId", in: "path", required: true, schema: { type: "integer" } },
+        ],
+        responses: {
+          "200": { description: "OK", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "400": errorResponse,
+          "404": errorResponse,
+          "500": errorResponse,
+        },
+      },
+    },
+    "/applications/{appId}/queries/{queryId}/stes": {
+      post: {
+        tags: ["Applications"],
+        summary: "Привязать СТЕ к запросу",
+        parameters: [
+          { name: "appId", in: "path", required: true, schema: { type: "integer" } },
+          { name: "queryId", in: "path", required: true, schema: { type: "integer" } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["steId", "nameMatchPercent"],
+                properties: {
+                  steId: { type: "integer" },
+                  nameMatchPercent: { type: "number", minimum: 0, maximum: 100 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Created", content: { "application/json": { schema: { $ref: "#/components/schemas/ApplicationQuerySte" } } } },
+          "400": errorResponse,
+          "404": errorResponse,
+          "500": errorResponse,
+        },
+      },
+    },
+    "/applications/{appId}/queries/{queryId}/stes/{steId}": {
+      delete: {
+        tags: ["Applications"],
+        summary: "Отвязать СТЕ от запроса",
+        parameters: [
+          { name: "appId", in: "path", required: true, schema: { type: "integer" } },
+          { name: "queryId", in: "path", required: true, schema: { type: "integer" } },
+          { name: "steId", in: "path", required: true, schema: { type: "integer" } },
+        ],
+        responses: {
+          "200": { description: "OK", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "400": errorResponse,
+          "404": errorResponse,
+          "500": errorResponse,
+        },
+      },
+    },
+
     // ─── Search ─────────────────────────────────────────────────────────────────
     "/search/items": {
       get: {
@@ -225,6 +375,64 @@ export const swaggerDocument: OpenAPIV3.Document = {
           steManufacturer: { type: "string", nullable: true },
           steCharacteristics: { type: "string", nullable: true },
         },
+      },
+      Application: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          name: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      ApplicationQuery: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          applicationId: { type: "integer" },
+          queryText: { type: "string" },
+        },
+      },
+      ApplicationQuerySte: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          queryId: { type: "integer" },
+          steId: { type: "integer" },
+          nameMatchPercent: { type: "string", description: "numeric(5,2)" },
+        },
+      },
+      ApplicationQuerySteWithSte: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          queryId: { type: "integer" },
+          steId: { type: "integer" },
+          nameMatchPercent: { type: "string" },
+          steName: { type: "string", nullable: true },
+          steCategory: { type: "string", nullable: true },
+          steManufacturer: { type: "string", nullable: true },
+          steCharacteristics: { type: "string", nullable: true },
+        },
+      },
+      ApplicationQueryFull: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          applicationId: { type: "integer" },
+          queryText: { type: "string" },
+          stes: { type: "array", items: { $ref: "#/components/schemas/ApplicationQuerySteWithSte" } },
+        },
+      },
+      ApplicationFull: {
+        allOf: [
+          { $ref: "#/components/schemas/Application" },
+          {
+            type: "object",
+            properties: {
+              queries: { type: "array", items: { $ref: "#/components/schemas/ApplicationQueryFull" } },
+            },
+          },
+        ],
       },
       SearchItem: {
         type: "object",
