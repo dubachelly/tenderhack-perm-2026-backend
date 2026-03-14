@@ -105,6 +105,32 @@ export const swaggerDocument: OpenAPIV3.Document = {
         },
       },
     },
+    "/contracts/supplier-regions": {
+      get: {
+        tags: ["Contracts"],
+        summary: "Список уникальных регионов поставщиков",
+        responses: {
+          "200": {
+            description: "OK",
+            content: { "application/json": { schema: { type: "array", items: { type: "string" } } } },
+          },
+          "500": errorResponse,
+        },
+      },
+    },
+    "/contracts/buyer-regions": {
+      get: {
+        tags: ["Contracts"],
+        summary: "Список уникальных регионов заказчиков",
+        responses: {
+          "200": {
+            description: "OK",
+            content: { "application/json": { schema: { type: "array", items: { type: "string" } } } },
+          },
+          "500": errorResponse,
+        },
+      },
+    },
     "/contracts/{id}": {
       get: {
         tags: ["Contracts"],

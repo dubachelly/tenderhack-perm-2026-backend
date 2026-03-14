@@ -41,6 +41,34 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /contracts/supplier-regions
+router.get("/supplier-regions", async (_req, res) => {
+  try {
+    const rows = await db
+      .selectDistinct({ region: contracts.supplierRegion })
+      .from(contracts)
+      .where(sql`${contracts.supplierRegion} is not null`)
+      .orderBy(contracts.supplierRegion);
+    res.json(rows.map((r) => r.region));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /contracts/buyer-regions
+router.get("/buyer-regions", async (_req, res) => {
+  try {
+    const rows = await db
+      .selectDistinct({ region: contracts.buyerRegion })
+      .from(contracts)
+      .where(sql`${contracts.buyerRegion} is not null`)
+      .orderBy(contracts.buyerRegion);
+    res.json(rows.map((r) => r.region));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // GET /contracts/:id — контракт с позициями и СТЕ
 router.get("/:id", async (req, res) => {
   try {
