@@ -3,8 +3,7 @@ import { db } from "../db";
 import {
 	applications,
 	applicationQueries,
-	applicationQueryStes,
-	ste,
+	applicationQueryContracts,
 } from "../../schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -77,61 +76,43 @@ router.get("/:id", async (req, res) => {
 
 		const queryIds = queries.map((q) => q.id);
 
-		const steLinks =
+		const contractLinks =
 			queryIds.length > 0
 				? await db.execute(sql`
-            WITH StePriceStats AS (
-              SELECT
-                ci.ste_id,
-                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ci.unit_price) AS q1,
-                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ci.unit_price) AS q3
-              FROM contract_items ci
-              GROUP BY ci.ste_id
-            ),
-            SteFilteredPrices AS (
-              SELECT
-                ci.id,
-                ci.ste_id,
-                ci.unit_price
-              FROM contract_items ci
-              JOIN StePriceStats sps ON ci.ste_id = sps.ste_id
-              WHERE
-                ci.unit_price >= (sps.q1 - 1.5 * (sps.q3 - sps.q1)) AND
-                ci.unit_price <= (sps.q3 + 1.5 * (sps.q3 - sps.q1))
-            )
             SELECT
-              aqs.query_id              AS "queryId",
-              aqs.ste_id                AS "steId",
-              aqs.name_match_percent    AS "nameMatchPercent",
-              s.name                    AS "steName",
-              s.category                AS "steCategory",
-              s.manufacturer            AS "steManufacturer",
-              s.characteristics         AS "steCharacteristics",
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sfp.unit_price) AS "medianPrice"
-            FROM application_query_stes aqs
-            LEFT JOIN ste s ON aqs.ste_id = s.id
-            LEFT JOIN SteFilteredPrices sfp ON aqs.ste_id = sfp.ste_id
-            WHERE aqs.query_id = ANY(ARRAY[${sql.raw(queryIds.join(","))}])
-            GROUP BY aqs.query_id, aqs.ste_id, aqs.name_match_percent, s.name, s.category, s.manufacturer, s.characteristics
+              aqc.query_id                        AS "queryId",
+              aqc.contract_id                     AS "contractId",
+              c.procurement_name                  AS "procurementName",
+              c.procurement_method                AS "procurementMethod",
+              c.initial_contract_value            AS "initialContractValue",
+              c.contract_value_after_signing      AS "contractValueAfterSigning",
+              c.reduction_percent                 AS "reductionPercent",
+              c.vat_rate                          AS "vatRate",
+              c.contract_signing_date             AS "contractSigningDate",
+              c.buyer_inn                         AS "buyerInn",
+              c.buyer_region                      AS "buyerRegion",
+              c.supplier_inn                      AS "supplierInn",
+              c.supplier_region                   AS "supplierRegion"
+            FROM application_query_contracts aqc
+            LEFT JOIN contracts c ON aqc.contract_id = c.id
+            WHERE aqc.query_id = ANY(ARRAY[${sql.raw(queryIds.join(","))}])
           `)
-				: [];
+				: { rows: [] };
 
-		// The result from db.execute needs to be handled as rows.rows
-		const formattedSteLinks = Array.isArray(steLinks)
-			? steLinks
-			: steLinks.rows;
+		const formattedLinks = contractLinks.rows;
 
-		const steByQuery: Record<number, typeof formattedSteLinks> = {};
-		for (const link of formattedSteLinks) {
-			if (!steByQuery[link.queryId]) steByQuery[link.queryId] = [];
-			steByQuery[link.queryId].push(link);
+		const contractsByQuery: Record<number, typeof formattedLinks> = {};
+		for (const link of formattedLinks) {
+			const qid = (link as { queryId: number }).queryId;
+			if (!contractsByQuery[qid]) contractsByQuery[qid] = [];
+			contractsByQuery[qid].push(link);
 		}
 
 		const result = {
 			...app,
 			queries: queries.map((q) => ({
 				...q,
-				stes: steByQuery[q.id] ?? [],
+				contracts: contractsByQuery[q.id] ?? [],
 			})),
 		};
 
@@ -207,21 +188,16 @@ router.delete("/:appId/queries/:queryId", async (req, res) => {
 	}
 });
 
-// POST /applications/:appId/queries/:queryId/stes
-router.post("/:appId/queries/:queryId/stes", async (req, res) => {
+// POST /applications/:appId/queries/:queryId/contracts
+router.post("/:appId/queries/:queryId/contracts", async (req, res) => {
 	try {
 		const queryId = parseInt(req.params.queryId);
 		if (isNaN(queryId))
 			return res.status(400).json({ error: "Invalid queryId" });
 
-		const { steId, nameMatchPercent } = req.body as {
-			steId?: string;
-			nameMatchPercent?: number;
-		};
-		if (steId === undefined || nameMatchPercent === undefined) {
-			return res
-				.status(400)
-				.json({ error: "steId and nameMatchPercent are required" });
+		const { contractId } = req.body as { contractId?: number };
+		if (contractId === undefined) {
+			return res.status(400).json({ error: "contractId is required" });
 		}
 
 		const [query] = await db
@@ -232,18 +208,18 @@ router.post("/:appId/queries/:queryId/stes", async (req, res) => {
 
 		const [existing] = await db
 			.select()
-			.from(applicationQueryStes)
+			.from(applicationQueryContracts)
 			.where(
-				sql`${applicationQueryStes.queryId} = ${queryId} AND ${applicationQueryStes.steId} = ${steId}`,
+				sql`${applicationQueryContracts.queryId} = ${queryId} AND ${applicationQueryContracts.contractId} = ${contractId}`,
 			);
 		if (existing)
 			return res
 				.status(409)
-				.json({ error: "STE already linked to this query" });
+				.json({ error: "Contract already linked to this query" });
 
 		const [link] = await db
-			.insert(applicationQueryStes)
-			.values({ queryId, steId, nameMatchPercent: String(nameMatchPercent) })
+			.insert(applicationQueryContracts)
+			.values({ queryId, contractId })
 			.returning();
 
 		res.status(201).json(link);
@@ -252,18 +228,18 @@ router.post("/:appId/queries/:queryId/stes", async (req, res) => {
 	}
 });
 
-// DELETE /applications/:appId/queries/:queryId/stes/:steId
-router.delete("/:appId/queries/:queryId/stes/:steId", async (req, res) => {
+// DELETE /applications/:appId/queries/:queryId/contracts/:contractId
+router.delete("/:appId/queries/:queryId/contracts/:contractId", async (req, res) => {
 	try {
 		const queryId = parseInt(req.params.queryId);
-		const steId = req.params.steId;
-		if (isNaN(queryId) || !steId)
+		const contractId = parseInt(req.params.contractId);
+		if (isNaN(queryId) || isNaN(contractId))
 			return res.status(400).json({ error: "Invalid id" });
 
 		const [deleted] = await db
-			.delete(applicationQueryStes)
+			.delete(applicationQueryContracts)
 			.where(
-				sql`${applicationQueryStes.queryId} = ${queryId} AND ${applicationQueryStes.steId} = ${steId}`,
+				sql`${applicationQueryContracts.queryId} = ${queryId} AND ${applicationQueryContracts.contractId} = ${contractId}`,
 			)
 			.returning();
 

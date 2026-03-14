@@ -335,7 +335,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 		"/applications/{id}": {
 			get: {
 				tags: ["Applications"],
-				summary: "Заявка со всеми запросами и привязанными СТЕ",
+				summary: "Заявка со всеми запросами и привязанными контрактами",
 				parameters: [
 					{
 						name: "id",
@@ -462,10 +462,10 @@ export const swaggerDocument: OpenAPIV3.Document = {
 				},
 			},
 		},
-		"/applications/{appId}/queries/{queryId}/stes": {
+		"/applications/{appId}/queries/{queryId}/contracts": {
 			post: {
 				tags: ["Applications"],
-				summary: "Привязать СТЕ к запросу",
+				summary: "Привязать контракт к запросу",
 				parameters: [
 					{
 						name: "appId",
@@ -486,14 +486,9 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						"application/json": {
 							schema: {
 								type: "object",
-								required: ["steId", "nameMatchPercent"],
+								required: ["contractId"],
 								properties: {
-									steId: { type: "integer" },
-									nameMatchPercent: {
-										type: "number",
-										minimum: 0,
-										maximum: 100,
-									},
+									contractId: { type: "integer" },
 								},
 							},
 						},
@@ -504,7 +499,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						description: "Created",
 						content: {
 							"application/json": {
-								schema: { $ref: "#/components/schemas/ApplicationQuerySte" },
+								schema: { $ref: "#/components/schemas/ApplicationQueryContract" },
 							},
 						},
 					},
@@ -514,10 +509,10 @@ export const swaggerDocument: OpenAPIV3.Document = {
 				},
 			},
 		},
-		"/applications/{appId}/queries/{queryId}/stes/{steId}": {
+		"/applications/{appId}/queries/{queryId}/contracts/{contractId}": {
 			delete: {
 				tags: ["Applications"],
-				summary: "Отвязать СТЕ от запроса",
+				summary: "Отвязать контракт от запроса",
 				parameters: [
 					{
 						name: "appId",
@@ -532,7 +527,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						schema: { type: "integer" },
 					},
 					{
-						name: "steId",
+						name: "contractId",
 						in: "path",
 						required: true,
 						schema: { type: "integer" },
@@ -644,11 +639,6 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					steCategory: { type: "string", nullable: true },
 					steManufacturer: { type: "string", nullable: true },
 					steCharacteristics: { type: "string", nullable: true },
-					medianPrice: {
-						type: "number",
-						nullable: true,
-						description: "Median unit price for the STE, excluding outliers",
-					},
 				},
 			},
 			Application: {
@@ -667,31 +657,29 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					queryText: { type: "string" },
 				},
 			},
-			ApplicationQuerySte: {
+			ApplicationQueryContract: {
 				type: "object",
 				properties: {
-					id: { type: "integer" },
 					queryId: { type: "integer" },
-					steId: { type: "integer" },
-					nameMatchPercent: { type: "string", description: "numeric(5,2)" },
+					contractId: { type: "integer" },
 				},
 			},
-			ApplicationQuerySteWithSte: {
+			ApplicationQueryContractWithContract: {
 				type: "object",
 				properties: {
-					id: { type: "integer" },
 					queryId: { type: "integer" },
-					steId: { type: "integer" },
-					nameMatchPercent: { type: "string" },
-					steName: { type: "string", nullable: true },
-					steCategory: { type: "string", nullable: true },
-					steManufacturer: { type: "string", nullable: true },
-					steCharacteristics: { type: "string", nullable: true },
-					medianPrice: {
-						type: "number",
-						nullable: true,
-						description: "Median unit price for the STE, excluding outliers",
-					},
+					contractId: { type: "integer" },
+					procurementName: { type: "string", nullable: true },
+					procurementMethod: { type: "string", nullable: true },
+					initialContractValue: { type: "string", nullable: true },
+					contractValueAfterSigning: { type: "string", nullable: true },
+					reductionPercent: { type: "string", nullable: true },
+					vatRate: { type: "string", nullable: true },
+					contractSigningDate: { type: "string", format: "date-time", nullable: true },
+					buyerInn: { type: "string", nullable: true },
+					buyerRegion: { type: "string", nullable: true },
+					supplierInn: { type: "string", nullable: true },
+					supplierRegion: { type: "string", nullable: true },
 				},
 			},
 			ApplicationQueryFull: {
@@ -700,9 +688,9 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					id: { type: "integer" },
 					applicationId: { type: "integer" },
 					queryText: { type: "string" },
-					stes: {
+					contracts: {
 						type: "array",
-						items: { $ref: "#/components/schemas/ApplicationQuerySteWithSte" },
+						items: { $ref: "#/components/schemas/ApplicationQueryContractWithContract" },
 					},
 				},
 			},
@@ -744,11 +732,6 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					rank: {
 						type: "number",
 						description: "Релевантность полнотекстового поиска",
-					},
-					median_price: {
-						type: "number",
-						nullable: true,
-						description: "Median unit price for the STE, excluding outliers",
 					},
 					contracts: {
 						type: "array",

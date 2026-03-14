@@ -8,7 +8,6 @@ import {
   varchar,
   integer,
   index,
-  foreignKey,
   customType,
   primaryKey,
 } from "drizzle-orm/pg-core";
@@ -128,6 +127,7 @@ export const contractItems = pgTable(
 
 export const contractsRelations = relations(contracts, ({ many }) => ({
   items: many(contractItems),
+  applicationQueryContracts: many(applicationQueryContracts),
 }));
 
 export const contractItemsRelations = relations(contractItems, ({ one }) => ({
@@ -143,7 +143,6 @@ export const contractItemsRelations = relations(contractItems, ({ one }) => ({
 
 export const steRelations = relations(ste, ({ many }) => ({
   contractItems: many(contractItems),
-  applicationQueryStes: many(applicationQueryStes),
 }));
 
 // ─── Заявки ───────────────────────────────────────────────────────────────────
@@ -162,18 +161,17 @@ export const applicationQueries = pgTable("application_queries", {
   queryText: text("query_text").notNull(),
 });
 
-export const applicationQueryStes = pgTable(
-  "application_query_stes",
+export const applicationQueryContracts = pgTable(
+  "application_query_contracts",
   {
     queryId: integer("query_id")
       .notNull()
       .references(() => applicationQueries.id, { onDelete: "cascade" }),
-    steId: bigint("ste_id", { mode: "number" })
+    contractId: bigint("contract_id", { mode: "number" })
       .notNull()
-      .references(() => ste.id),
-    nameMatchPercent: numeric("name_match_percent", { precision: 5, scale: 2 }).notNull(),
+      .references(() => contracts.id),
   },
-  (t) => [primaryKey({ columns: [t.queryId, t.steId] })],
+  (t) => [primaryKey({ columns: [t.queryId, t.contractId] })],
 );
 
 export const applicationsRelations = relations(applications, ({ many }) => ({
@@ -185,17 +183,17 @@ export const applicationQueriesRelations = relations(applicationQueries, ({ one,
     fields: [applicationQueries.applicationId],
     references: [applications.id],
   }),
-  stes: many(applicationQueryStes),
+  contracts: many(applicationQueryContracts),
 }));
 
-export const applicationQueryStesRelations = relations(applicationQueryStes, ({ one }) => ({
+export const applicationQueryContractsRelations = relations(applicationQueryContracts, ({ one }) => ({
   query: one(applicationQueries, {
-    fields: [applicationQueryStes.queryId],
+    fields: [applicationQueryContracts.queryId],
     references: [applicationQueries.id],
   }),
-  ste: one(ste, {
-    fields: [applicationQueryStes.steId],
-    references: [ste.id],
+  contract: one(contracts, {
+    fields: [applicationQueryContracts.contractId],
+    references: [contracts.id],
   }),
 }));
 
@@ -216,5 +214,5 @@ export type NewApplication = typeof applications.$inferInsert;
 export type ApplicationQuery = typeof applicationQueries.$inferSelect;
 export type NewApplicationQuery = typeof applicationQueries.$inferInsert;
 
-export type ApplicationQuerySte = typeof applicationQueryStes.$inferSelect;
-export type NewApplicationQuerySte = typeof applicationQueryStes.$inferInsert;
+export type ApplicationQueryContract = typeof applicationQueryContracts.$inferSelect;
+export type NewApplicationQueryContract = typeof applicationQueryContracts.$inferInsert;
