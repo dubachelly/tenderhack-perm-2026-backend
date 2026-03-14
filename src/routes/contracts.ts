@@ -69,6 +69,20 @@ router.get("/buyer-regions", async (_req, res) => {
   }
 });
 
+// GET /contracts/procurement-methods
+router.get("/procurement-methods", async (_req, res) => {
+  try {
+    const rows = await db
+      .selectDistinct({ method: contracts.procurementMethod })
+      .from(contracts)
+      .where(sql`${contracts.procurementMethod} is not null`)
+      .orderBy(contracts.procurementMethod);
+    res.json(rows.map((r) => r.method));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // GET /contracts/:id — контракт с позициями и СТЕ
 router.get("/:id", async (req, res) => {
   try {

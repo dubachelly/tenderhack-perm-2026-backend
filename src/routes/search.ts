@@ -1,10 +1,21 @@
 import { Router } from "express";
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, SQL } from "drizzle-orm";
 
 const router = Router();
 
-// GET /search/items?q=мешок+мусорный+20+литров&page=1&limit=50
+function parseMultiParam(val: unknown): string[] | null {
+	const arr = Array.isArray(val) ? val : val ? [val] : [];
+	const filtered = arr.filter((v): v is string => typeof v === "string" && v.length > 0);
+	return filtered.length > 0 ? filtered : null;
+}
+
+function inCondition(column: SQL, values: string[]): SQL {
+	return sql`${column} = ANY(ARRAY[${sql.join(values.map((v) => sql`${v}`), sql`, `)}])`;
+}
+
+// GET /search/items?q=...&page=1&limit=50&supplier_region=...&period_from=YYYY-MM-DD&period_to=YYYY-MM-DD&category=...&procurement_method=...
+// Параметры category, supplier_region, procurement_method поддерживают несколько значений (?category=A&category=B)
 // Возвращает список всех СТЕ по запросу (включая без контрактов), contract_ids — массив id контрактов
 router.get("/items", async (req, res) => {
 	try {
@@ -17,6 +28,38 @@ router.get("/items", async (req, res) => {
 			Math.max(1, parseInt(req.query.limit as string) || 50),
 		);
 		const offset = (page - 1) * limit;
+
+		const supplierRegions = parseMultiParam(req.query.supplier_region);
+		const periodFrom = (req.query.period_from as string) || null;
+		const periodTo = (req.query.period_to as string) || null;
+		const categories = parseMultiParam(req.query.category);
+		const procurementMethods = parseMultiParam(req.query.procurement_method);
+
+		const hasContractFilters = supplierRegions || periodFrom || periodTo || procurementMethods;
+
+		// Filters on ste table
+		const steExtraConditions: SQL[] = [];
+		if (categories) steExtraConditions.push(inCondition(sql`s.category`, categories));
+
+		// Filters on contracts table
+		const contractConditions: SQL[] = [];
+		if (supplierRegions) contractConditions.push(inCondition(sql`c.supplier_region`, supplierRegions));
+		if (periodFrom) contractConditions.push(sql`c.contract_signing_date >= ${periodFrom}::date`);
+		if (periodTo) contractConditions.push(sql`c.contract_signing_date <= ${periodTo}::date`);
+		if (procurementMethods) contractConditions.push(inCondition(sql`c.procurement_method`, procurementMethods));
+
+		const steWhere = steExtraConditions.length > 0
+			? sql` AND ${sql.join(steExtraConditions, sql` AND `)}`
+			: sql``;
+
+		const contractWhere = contractConditions.length > 0
+			? sql` AND ${sql.join(contractConditions, sql` AND `)}`
+			: sql``;
+
+		// When contract filters are active, use INNER JOIN so only STEs with matching contracts are returned
+		const contractJoin = hasContractFilters
+			? sql`JOIN contract_items ci ON ci.ste_id = s.id JOIN contracts c ON c.id = ci.contract_id`
+			: sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id`;
 
 		const [rows, countResult] = await Promise.all([
 			db.execute(sql`
@@ -32,8 +75,10 @@ router.get("/items", async (req, res) => {
             '{}'
           ) AS contract_ids
         FROM ste s
-        LEFT JOIN contract_items ci ON ci.ste_id = s.id
+        ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
+          ${steWhere}
+          ${contractWhere}
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, rank
         ORDER BY rank DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -41,7 +86,10 @@ router.get("/items", async (req, res) => {
 			db.execute(sql`
         SELECT count(DISTINCT s.id)::int AS count
         FROM ste s
+        ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
+          ${steWhere}
+          ${contractWhere}
       `),
 		]);
 
@@ -53,12 +101,33 @@ router.get("/items", async (req, res) => {
 	}
 });
 
-// GET /search/ste/:steId/contracts
+// GET /search/ste/:steId/contracts?supplier_region=...&period_from=YYYY-MM-DD&period_to=YYYY-MM-DD&category=...&procurement_method=...
+// Параметры category, supplier_region, procurement_method поддерживают несколько значений (?category=A&category=B)
 // Возвращает список контрактов с данным СТЕ
 router.get("/ste/:steId/contracts", async (req, res) => {
 	try {
 		const steId = parseInt(req.params.steId);
 		if (isNaN(steId)) return res.status(400).json({ error: "invalid steId" });
+
+		const supplierRegions = parseMultiParam(req.query.supplier_region);
+		const periodFrom = (req.query.period_from as string) || null;
+		const periodTo = (req.query.period_to as string) || null;
+		const categories = parseMultiParam(req.query.category);
+		const procurementMethods = parseMultiParam(req.query.procurement_method);
+
+		const extraConditions: SQL[] = [];
+		if (supplierRegions) extraConditions.push(inCondition(sql`c.supplier_region`, supplierRegions));
+		if (periodFrom) extraConditions.push(sql`c.contract_signing_date >= ${periodFrom}::date`);
+		if (periodTo) extraConditions.push(sql`c.contract_signing_date <= ${periodTo}::date`);
+		if (categories) extraConditions.push(inCondition(sql`s.category`, categories));
+		if (procurementMethods) extraConditions.push(inCondition(sql`c.procurement_method`, procurementMethods));
+
+		const extraWhere = extraConditions.length > 0
+			? sql` AND ${sql.join(extraConditions, sql` AND `)}`
+			: sql``;
+
+		// Join ste only when category filter is needed
+		const steJoin = categories ? sql`JOIN ste s ON s.id = ci.ste_id` : sql``;
 
 		const rows = await db.execute(sql`
       SELECT
@@ -81,7 +150,9 @@ router.get("/ste/:steId/contracts", async (req, res) => {
         ci.unit_price
       FROM contract_items ci
       JOIN contracts c ON c.id = ci.contract_id
+      ${steJoin}
       WHERE ci.ste_id = ${steId}
+        ${extraWhere}
       ORDER BY c.id, ci.id
     `);
 

@@ -214,6 +214,23 @@ export const swaggerDocument: OpenAPIV3.Document = {
 				},
 			},
 		},
+		"/contracts/procurement-methods": {
+			get: {
+				tags: ["Contracts"],
+				summary: "Список уникальных способов закупки",
+				responses: {
+					"200": {
+						description: "OK",
+						content: {
+							"application/json": {
+								schema: { type: "array", items: { type: "string" } },
+							},
+						},
+					},
+					"500": errorResponse,
+				},
+			},
+		},
 		"/contracts/{id}": {
 			get: {
 				tags: ["Contracts"],
@@ -565,6 +582,44 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						description: "Поисковый запрос (русский язык)",
 						schema: { type: "string", example: "мешок мусорный 20 литров" },
 					},
+					{
+						name: "category",
+						in: "query",
+						required: false,
+						description: "Фильтр по категории продукции (можно несколько: ?category=A&category=B)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+					{
+						name: "supplier_region",
+						in: "query",
+						required: false,
+						description: "Фильтр по региону поставщика (можно несколько)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+					{
+						name: "period_from",
+						in: "query",
+						required: false,
+						description: "Начало периода подписания контракта (YYYY-MM-DD)",
+						schema: { type: "string", format: "date" },
+					},
+					{
+						name: "period_to",
+						in: "query",
+						required: false,
+						description: "Конец периода подписания контракта (YYYY-MM-DD)",
+						schema: { type: "string", format: "date" },
+					},
+					{
+						name: "procurement_method",
+						in: "query",
+						required: false,
+						description: "Фильтр по способу закупки (можно несколько)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
 				]),
 				responses: {
 					"200": paginatedResponse({
@@ -585,6 +640,44 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						in: "path",
 						required: true,
 						schema: { type: "integer" },
+					},
+					{
+						name: "category",
+						in: "query",
+						required: false,
+						description: "Фильтр по категории продукции (можно несколько: ?category=A&category=B)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+					{
+						name: "supplier_region",
+						in: "query",
+						required: false,
+						description: "Фильтр по региону поставщика (можно несколько)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+					{
+						name: "period_from",
+						in: "query",
+						required: false,
+						description: "Начало периода подписания контракта (YYYY-MM-DD)",
+						schema: { type: "string", format: "date" },
+					},
+					{
+						name: "period_to",
+						in: "query",
+						required: false,
+						description: "Конец периода подписания контракта (YYYY-MM-DD)",
+						schema: { type: "string", format: "date" },
+					},
+					{
+						name: "procurement_method",
+						in: "query",
+						required: false,
+						description: "Фильтр по способу закупки (можно несколько)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
 					},
 				],
 				responses: {
