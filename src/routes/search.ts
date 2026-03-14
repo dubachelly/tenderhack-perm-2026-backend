@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 const router = Router();
 
 // GET /search/items?q=мешок+мусорный+20+литров&page=1&limit=50
+// Возвращает список СТЕ, каждая с вложенным массивом contract_items
 router.get("/items", async (req, res) => {
   try {
     const q = (req.query.q as string)?.trim();
@@ -17,28 +18,34 @@ router.get("/items", async (req, res) => {
     const [rows, countResult] = await Promise.all([
       db.execute(sql`
         SELECT
-          ci.id,
-          ci.contract_id,
-          ci.ste_id,
-          ci.ste_item_name,
-          ci.quantity,
-          ci.unit,
-          ci.unit_price,
-          s.name        AS ste_name,
-          s.category    AS ste_category,
-          s.manufacturer AS ste_manufacturer,
+          s.id              AS ste_id,
+          s.name            AS ste_name,
+          s.category        AS ste_category,
+          s.manufacturer    AS ste_manufacturer,
           s.characteristics AS ste_characteristics,
-          ts_rank(s.search_vector, plainto_tsquery('russian', ${q})) AS rank
-        FROM contract_items ci
-        INNER JOIN ste s ON ci.ste_id = s.id
+          ts_rank(s.search_vector, plainto_tsquery('russian', ${q})) AS rank,
+          json_agg(
+            json_build_object(
+              'id',           ci.id,
+              'contract_id',  ci.contract_id,
+              'ste_item_name', ci.ste_item_name,
+              'quantity',     ci.quantity,
+              'unit',         ci.unit,
+              'unit_price',   ci.unit_price
+            )
+            ORDER BY ci.id
+          ) AS contracts
+        FROM ste s
+        INNER JOIN contract_items ci ON ci.ste_id = s.id
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
+        GROUP BY s.id
         ORDER BY rank DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
       db.execute(sql`
-        SELECT count(*)::int AS count
-        FROM contract_items ci
-        INNER JOIN ste s ON ci.ste_id = s.id
+        SELECT count(DISTINCT s.id)::int AS count
+        FROM ste s
+        INNER JOIN contract_items ci ON ci.ste_id = s.id
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
       `),
     ]);

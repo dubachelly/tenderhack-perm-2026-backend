@@ -320,7 +320,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
           { name: "q", in: "query", required: true, description: "Поисковый запрос (русский язык)", schema: { type: "string", example: "мешок мусорный 20 литров" } },
         ]),
         responses: {
-          "200": paginatedResponse({ $ref: "#/components/schemas/SearchItem" }),
+          "200": paginatedResponse({ $ref: "#/components/schemas/SearchSteGroup" }),
           "400": errorResponse,
           "500": errorResponse,
         },
@@ -434,21 +434,28 @@ export const swaggerDocument: OpenAPIV3.Document = {
           },
         ],
       },
-      SearchItem: {
+      SearchContractItem: {
         type: "object",
         properties: {
           id: { type: "integer" },
           contract_id: { type: "integer" },
-          ste_id: { type: "integer", nullable: true },
           ste_item_name: { type: "string", nullable: true },
           quantity: { type: "string", nullable: true },
           unit: { type: "string", nullable: true },
           unit_price: { type: "string", nullable: true },
+        },
+      },
+      SearchSteGroup: {
+        type: "object",
+        description: "СТЕ с вложенным списком контрактов, в которых она встречается",
+        properties: {
+          ste_id: { type: "integer" },
           ste_name: { type: "string", nullable: true },
           ste_category: { type: "string", nullable: true },
           ste_manufacturer: { type: "string", nullable: true },
           ste_characteristics: { type: "string", nullable: true },
           rank: { type: "number", description: "Релевантность полнотекстового поиска" },
+          contracts: { type: "array", items: { $ref: "#/components/schemas/SearchContractItem" } },
         },
       },
     },
