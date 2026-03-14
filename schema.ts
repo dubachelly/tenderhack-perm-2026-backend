@@ -122,10 +122,9 @@ export const contractItems = pgTable(
 
 export const contractsRelations = relations(contracts, ({ many }) => ({
   items: many(contractItems),
-  applicationQueryContracts: many(applicationQueryContracts),
 }));
 
-export const contractItemsRelations = relations(contractItems, ({ one }) => ({
+export const contractItemsRelations = relations(contractItems, ({ one, many }) => ({
   contract: one(contracts, {
     fields: [contractItems.contractId],
     references: [contracts.id],
@@ -134,6 +133,7 @@ export const contractItemsRelations = relations(contractItems, ({ one }) => ({
     fields: [contractItems.steId],
     references: [ste.id],
   }),
+  applicationQueryContracts: many(applicationQueryContracts),
 }));
 
 export const steRelations = relations(ste, ({ many }) => ({
@@ -162,11 +162,11 @@ export const applicationQueryContracts = pgTable(
     queryId: integer("query_id")
       .notNull()
       .references(() => applicationQueries.id, { onDelete: "cascade" }),
-    contractId: bigint("contract_id", { mode: "number" })
+    contractItemId: integer("contract_item_id")
       .notNull()
-      .references(() => contracts.id),
+      .references(() => contractItems.id),
   },
-  (t) => [primaryKey({ columns: [t.queryId, t.contractId] })],
+  (t) => [primaryKey({ columns: [t.queryId, t.contractItemId] })],
 );
 
 export const applicationsRelations = relations(applications, ({ many }) => ({
@@ -186,9 +186,9 @@ export const applicationQueryContractsRelations = relations(applicationQueryCont
     fields: [applicationQueryContracts.queryId],
     references: [applicationQueries.id],
   }),
-  contract: one(contracts, {
-    fields: [applicationQueryContracts.contractId],
-    references: [contracts.id],
+  contractItem: one(contractItems, {
+    fields: [applicationQueryContracts.contractItemId],
+    references: [contractItems.id],
   }),
 }));
 

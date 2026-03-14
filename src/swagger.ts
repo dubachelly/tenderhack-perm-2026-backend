@@ -491,7 +491,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 		"/applications/{appId}/queries/{queryId}/contracts": {
 			post: {
 				tags: ["Applications"],
-				summary: "Привязать контракт к запросу",
+				summary: "Привязать позицию контракта к запросу",
 				parameters: [
 					{
 						name: "appId",
@@ -512,9 +512,9 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						"application/json": {
 							schema: {
 								type: "object",
-								required: ["contractId"],
+								required: ["contractItemId"],
 								properties: {
-									contractId: { type: "integer" },
+									contractItemId: { type: "integer" },
 								},
 							},
 						},
@@ -535,10 +535,10 @@ export const swaggerDocument: OpenAPIV3.Document = {
 				},
 			},
 		},
-		"/applications/{appId}/queries/{queryId}/contracts/{contractId}": {
+		"/applications/{appId}/queries/{queryId}/contracts/{contractItemId}": {
 			delete: {
 				tags: ["Applications"],
-				summary: "Отвязать контракт от запроса",
+				summary: "Отвязать позицию контракта от запроса",
 				parameters: [
 					{
 						name: "appId",
@@ -553,7 +553,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						schema: { type: "integer" },
 					},
 					{
-						name: "contractId",
+						name: "contractItemId",
 						in: "path",
 						required: true,
 						schema: { type: "integer" },
@@ -803,13 +803,19 @@ export const swaggerDocument: OpenAPIV3.Document = {
 				type: "object",
 				properties: {
 					queryId: { type: "integer" },
-					contractId: { type: "integer" },
+					contractItemId: { type: "integer" },
 				},
 			},
 			ApplicationQueryContractWithContract: {
 				type: "object",
 				properties: {
 					queryId: { type: "integer" },
+					contractItemId: { type: "integer" },
+					steId: { type: "integer", nullable: true },
+					steItemName: { type: "string", nullable: true },
+					quantity: { type: "number", nullable: true },
+					unit: { type: "string", nullable: true },
+					unitPrice: { type: "number", nullable: true },
 					contractId: { type: "integer" },
 					procurementName: { type: "string", nullable: true },
 					procurementMethod: { type: "string", nullable: true },
@@ -853,7 +859,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 			SearchSteGroup: {
 				type: "object",
 				description:
-					"СТЕ с массивом id контрактов, в которых она встречается (пустой массив если контрактов нет)",
+					"СТЕ с массивом id позиций контрактов, в которых она встречается (пустой массив если контрактов нет)",
 				properties: {
 					ste_id: { type: "integer" },
 					ste_name: { type: "string", nullable: true },
@@ -864,10 +870,10 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						type: "number",
 						description: "Релевантность полнотекстового поиска",
 					},
-					contract_ids: {
+					contract_item_ids: {
 						type: "array",
 						items: { type: "integer" },
-						description: "Массив id контрактов, содержащих данную СТЕ",
+						description: "Массив id позиций контрактов (contract_items), содержащих данную СТЕ",
 					},
 				},
 			},

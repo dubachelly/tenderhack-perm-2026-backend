@@ -21,7 +21,7 @@ function inCondition(column: SQL, values: string[]): SQL {
 
 // GET /search/items?q=...&page=1&limit=50&supplier_region=...&period_from=YYYY-MM-DD&period_to=YYYY-MM-DD&category=...&procurement_method=...
 // Параметры category, supplier_region, procurement_method поддерживают несколько значений (?category=A&category=B)
-// Возвращает список всех СТЕ по запросу (включая без контрактов), contract_ids — массив id контрактов
+// Возвращает список всех СТЕ по запросу (включая без контрактов), contract_item_ids — массив id позиций контрактов
 router.get("/items", async (req, res) => {
 	try {
 		const q = (req.query.q as string)?.trim();
@@ -87,9 +87,9 @@ router.get("/items", async (req, res) => {
           s.characteristics AS ste_characteristics,
           ts_rank(s.search_vector, plainto_tsquery('russian', ${q})) AS rank,
           COALESCE(
-            array_agg(DISTINCT ci.contract_id) FILTER (WHERE ci.contract_id IS NOT NULL),
+            array_agg(DISTINCT ci.id) FILTER (WHERE ci.id IS NOT NULL),
             '{}'
-          ) AS contract_ids
+          ) AS contract_item_ids
         FROM ste s
         ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})

@@ -81,7 +81,13 @@ router.get("/:id", async (req, res) => {
 				? await db.execute(sql`
             SELECT
               aqc.query_id                        AS "queryId",
-              aqc.contract_id                     AS "contractId",
+              aqc.contract_item_id                AS "contractItemId",
+              ci.ste_id                           AS "steId",
+              ci.ste_item_name                    AS "steItemName",
+              ci.quantity                         AS "quantity",
+              ci.unit                             AS "unit",
+              ci.unit_price                       AS "unitPrice",
+              c.id                                AS "contractId",
               c.procurement_name                  AS "procurementName",
               c.procurement_method                AS "procurementMethod",
               c.initial_contract_value            AS "initialContractValue",
@@ -94,7 +100,8 @@ router.get("/:id", async (req, res) => {
               c.supplier_inn                      AS "supplierInn",
               c.supplier_region                   AS "supplierRegion"
             FROM application_query_contracts aqc
-            LEFT JOIN contracts c ON aqc.contract_id = c.id
+            LEFT JOIN contract_items ci ON aqc.contract_item_id = ci.id
+            LEFT JOIN contracts c ON ci.contract_id = c.id
             WHERE aqc.query_id = ANY(ARRAY[${sql.raw(queryIds.join(","))}])
           `)
 				: { rows: [] };
@@ -195,9 +202,9 @@ router.post("/:appId/queries/:queryId/contracts", async (req, res) => {
 		if (isNaN(queryId))
 			return res.status(400).json({ error: "Invalid queryId" });
 
-		const { contractId } = req.body as { contractId?: number };
-		if (contractId === undefined) {
-			return res.status(400).json({ error: "contractId is required" });
+		const { contractItemId } = req.body as { contractItemId?: number };
+		if (contractItemId === undefined) {
+			return res.status(400).json({ error: "contractItemId is required" });
 		}
 
 		const [query] = await db
@@ -210,16 +217,16 @@ router.post("/:appId/queries/:queryId/contracts", async (req, res) => {
 			.select()
 			.from(applicationQueryContracts)
 			.where(
-				sql`${applicationQueryContracts.queryId} = ${queryId} AND ${applicationQueryContracts.contractId} = ${contractId}`,
+				sql`${applicationQueryContracts.queryId} = ${queryId} AND ${applicationQueryContracts.contractItemId} = ${contractItemId}`,
 			);
 		if (existing)
 			return res
 				.status(409)
-				.json({ error: "Contract already linked to this query" });
+				.json({ error: "Contract item already linked to this query" });
 
 		const [link] = await db
 			.insert(applicationQueryContracts)
-			.values({ queryId, contractId })
+			.values({ queryId, contractItemId })
 			.returning();
 
 		res.status(201).json(link);
@@ -228,18 +235,18 @@ router.post("/:appId/queries/:queryId/contracts", async (req, res) => {
 	}
 });
 
-// DELETE /applications/:appId/queries/:queryId/contracts/:contractId
-router.delete("/:appId/queries/:queryId/contracts/:contractId", async (req, res) => {
+// DELETE /applications/:appId/queries/:queryId/contracts/:contractItemId
+router.delete("/:appId/queries/:queryId/contracts/:contractItemId", async (req, res) => {
 	try {
 		const queryId = parseInt(req.params.queryId);
-		const contractId = parseInt(req.params.contractId);
-		if (isNaN(queryId) || isNaN(contractId))
+		const contractItemId = parseInt(req.params.contractItemId);
+		if (isNaN(queryId) || isNaN(contractItemId))
 			return res.status(400).json({ error: "Invalid id" });
 
 		const [deleted] = await db
 			.delete(applicationQueryContracts)
 			.where(
-				sql`${applicationQueryContracts.queryId} = ${queryId} AND ${applicationQueryContracts.contractId} = ${contractId}`,
+				sql`${applicationQueryContracts.queryId} = ${queryId} AND ${applicationQueryContracts.contractItemId} = ${contractItemId}`,
 			)
 			.returning();
 

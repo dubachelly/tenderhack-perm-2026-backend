@@ -1,0 +1,6 @@
+-- Меняем привязку с contracts на contract_items
+ALTER TABLE application_query_contracts DROP CONSTRAINT application_query_contracts_query_id_contract_id_pk;
+ALTER TABLE application_query_contracts DROP CONSTRAINT application_query_contracts_contract_id_contracts_id_fk;
+ALTER TABLE application_query_contracts DROP COLUMN contract_id;
+ALTER TABLE application_query_contracts ADD COLUMN contract_item_id integer NOT NULL REFERENCES contract_items(id);
+ALTER TABLE application_query_contracts ADD CONSTRAINT application_query_contracts_pkey PRIMARY KEY (query_id, contract_item_id);
