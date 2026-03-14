@@ -162,7 +162,7 @@ router.post("/:appId/queries/:queryId/stes", async (req, res) => {
     const queryId = parseInt(req.params.queryId);
     if (isNaN(queryId)) return res.status(400).json({ error: "Invalid queryId" });
 
-    const { steId, nameMatchPercent } = req.body as { steId?: number; nameMatchPercent?: number };
+    const { steId, nameMatchPercent } = req.body as { steId?: string; nameMatchPercent?: number };
     if (steId === undefined || nameMatchPercent === undefined) {
       return res.status(400).json({ error: "steId and nameMatchPercent are required" });
     }
@@ -196,8 +196,8 @@ router.post("/:appId/queries/:queryId/stes", async (req, res) => {
 router.delete("/:appId/queries/:queryId/stes/:steId", async (req, res) => {
   try {
     const queryId = parseInt(req.params.queryId);
-    const steId = parseInt(req.params.steId);
-    if (isNaN(queryId) || isNaN(steId)) return res.status(400).json({ error: "Invalid id" });
+    const steId = req.params.steId;
+    if (isNaN(queryId) || !steId) return res.status(400).json({ error: "Invalid id" });
 
     const [deleted] = await db
       .delete(applicationQueryStes)
