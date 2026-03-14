@@ -3,6 +3,7 @@ import {
   bigint,
   text,
   numeric,
+  doublePrecision,
   timestamp,
   serial,
   varchar,
@@ -59,19 +60,13 @@ export const contracts = pgTable(
     /** Способ закупки (напр. "Контракт по итогам котировочной сессии") */
     procurementMethod: text("procurement_method"),
     /** Начальная (максимальная) стоимость контракта */
-    initialContractValue: numeric("initial_contract_value", {
-      precision: 20,
-      scale: 5,
-    }),
+    initialContractValue: doublePrecision("initial_contract_value"),
     /** Стоимость контракта после заключения */
-    contractValueAfterSigning: numeric("contract_value_after_signing", {
-      precision: 20,
-      scale: 5,
-    }),
+    contractValueAfterSigning: doublePrecision("contract_value_after_signing"),
     /** % снижения начальной цены */
-    reductionPercent: numeric("reduction_percent", { precision: 20, scale: 5 }),
-    /** Ставка НДС (напр. "20%", "Без НДС") */
-    vatRate: varchar("vat_rate", { length: 20 }),
+    reductionPercent: doublePrecision("reduction_percent"),
+    /** Ставка НДС (напр. 20, 0) */
+    vatRate: doublePrecision("vat_rate"),
     /** Дата заключения контракта */
     contractSigningDate: timestamp("contract_signing_date", {
       withTimezone: false,
@@ -111,11 +106,11 @@ export const contractItems = pgTable(
      */
     steItemName: text("ste_item_name"),
     /** Количество */
-    quantity: numeric("quantity", { precision: 20, scale: 11 }),
+    quantity: doublePrecision("quantity"),
     /** Единица измерения */
     unit: text("unit"),
     /** Цена за единицу */
-    unitPrice: numeric("unit_price", { precision: 20, scale: 11 }),
+    unitPrice: doublePrecision("unit_price"),
   },
   (t) => [
     index("contract_items_contract_id_idx").on(t.contractId),
