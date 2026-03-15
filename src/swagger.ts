@@ -661,10 +661,73 @@ export const swaggerDocument: OpenAPIV3.Document = {
 		},
 
 		// ─── Search ─────────────────────────────────────────────────────────────────
-		"/search/items": {
+		"/search/ai-items": {
 			get: {
 				tags: ["Search"],
-				summary: "Полнотекстовый поиск СТЕ (включая без контрактов)",
+				summary: "AI-поиск СТЕ по точному совпадению названия",
+				description: "Запрашивает AI-сервис (localhost:8000/search), затем возвращает СТЕ из БД с точно совпадающим названием. Формат ответа идентичен /search/items.",
+				parameters: [
+					{
+						name: "q",
+						in: "query",
+						required: true,
+						description: "Поисковый запрос, передаётся в AI-сервис",
+						schema: { type: "string", example: "пакеты для мусора 35 литров" },
+					},
+				],
+				responses: {
+					"200": {
+						description: "OK",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										data: { type: "array", items: { $ref: "#/components/schemas/SearchSteGroup" } },
+										total: { type: "integer" },
+										page: { type: "integer" },
+										limit: { type: "integer" },
+									},
+								},
+							},
+						},
+					},
+					"400": errorResponse,
+					"502": errorResponse,
+					"500": errorResponse,
+				},
+			},
+		},
+		"/search/categories": {
+			get: {
+				tags: ["Search"],
+				summary: "Список категорий СТЕ по поисковому запросу",
+				parameters: [
+					{
+						name: "q",
+						in: "query",
+						required: false,
+						description: "Поисковый запрос — возвращаются только категории среди подходящих СТЕ",
+						schema: { type: "string" },
+					},
+				],
+				responses: {
+					"200": {
+						description: "OK",
+						content: {
+							"application/json": {
+								schema: { type: "array", items: { type: "string" } },
+							},
+						},
+					},
+					"500": errorResponse,
+				},
+			},
+		},
+				"/search/items": {
+			get: {
+				tags: ["Search"],
+				summary: "Полнотекстовый поиск СТЕ",
 				parameters: paginatedQuery([
 					{
 						name: "q",
@@ -677,7 +740,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						name: "category",
 						in: "query",
 						required: false,
-						description: "Фильтр по категории продукции (можно несколько: ?category=A&category=B)",
+						description: "Фильтр по категории СТЕ — ограничивает выдачу (можно несколько: ?category=A&category=B)",
 						explode: true,
 						schema: { type: "array", items: { type: "string" } },
 					},
@@ -685,7 +748,7 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						name: "supplier_region",
 						in: "query",
 						required: false,
-						description: "Фильтр по региону поставщика (можно несколько)",
+						description: "Фильтр по региону поставщика — влияет на расчёт suggested_items_count (можно несколько)",
 						explode: true,
 						schema: { type: "array", items: { type: "string" } },
 					},
@@ -693,21 +756,21 @@ export const swaggerDocument: OpenAPIV3.Document = {
 						name: "period_from",
 						in: "query",
 						required: false,
-						description: "Начало периода подписания контракта (YYYY-MM-DD)",
+						description: "Начало периода подписания контракта (YYYY-MM-DD) — влияет на расчёт suggested_items_count",
 						schema: { type: "string", format: "date" },
 					},
 					{
 						name: "period_to",
 						in: "query",
 						required: false,
-						description: "Конец периода подписания контракта (YYYY-MM-DD)",
+						description: "Конец периода подписания контракта (YYYY-MM-DD) — влияет на расчёт suggested_items_count",
 						schema: { type: "string", format: "date" },
 					},
 					{
 						name: "procurement_method",
 						in: "query",
 						required: false,
-						description: "Фильтр по способу закупки (можно несколько)",
+						description: "Фильтр по способу закупки — влияет на расчёт suggested_items_count (можно несколько)",
 						explode: true,
 						schema: { type: "array", items: { type: "string" } },
 					},
@@ -724,7 +787,6 @@ export const swaggerDocument: OpenAPIV3.Document = {
 										total: { type: "integer" },
 										page: { type: "integer" },
 										limit: { type: "integer" },
-										categories: { type: "array", items: { type: "string" }, description: "Уникальные категории из текущей страницы результатов" },
 									},
 								},
 							},
@@ -796,6 +858,12 @@ export const swaggerDocument: OpenAPIV3.Document = {
 										data: {
 											type: "array",
 											items: { $ref: "#/components/schemas/SteContractRow" },
+											description: "Все позиции контрактов, удовлетворяющие фильтрам",
+										},
+										suggestedItems: {
+											type: "array",
+											items: { $ref: "#/components/schemas/SteContractRow" },
+											description: "Позиции, попадающие в доверительный диапазон цены по IQR (Q1 - 1.5·IQR ≤ unit_price ≤ Q3 + 1.5·IQR)",
 										},
 									},
 								},
@@ -951,6 +1019,10 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					rank: {
 						type: "number",
 						description: "Релевантность полнотекстового поиска",
+					},
+					suggested_items_count: {
+						type: "integer",
+						description: "Число позиций контрактов в пределах IQR (рекомендованные цены) с учётом фильтров",
 					},
 					contract_item_ids: {
 						type: "array",
