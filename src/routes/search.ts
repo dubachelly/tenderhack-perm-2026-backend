@@ -69,13 +69,15 @@ router.get("/items", async (req, res) => {
 				? sql` AND ${sql.join(steExtraConditions, sql` AND `)}`
 				: sql``;
 
-		// Contract filters go into JOIN ON so STEs without matching contracts still appear (with empty contract_ids)
-		const contractOnExtra =
+		// Contract filters go into WHERE when present.
+		// This keeps STEs without contracts when no filters are set,
+		// and limits results to matching contracts when filters are set.
+		const contractWhere =
 			contractConditions.length > 0
 				? sql` AND ${sql.join(contractConditions, sql` AND `)}`
 				: sql``;
 
-		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id${contractOnExtra}`;
+		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id`;
 
 		const [rows, countResult] = await Promise.all([
 			db.execute(sql`
@@ -94,6 +96,7 @@ router.get("/items", async (req, res) => {
         ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
           ${steWhere}
+          ${contractWhere}
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, rank
         ORDER BY rank DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -104,6 +107,7 @@ router.get("/items", async (req, res) => {
         ${contractJoin}
         WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
           ${steWhere}
+          ${contractWhere}
       `),
 		]);
 
