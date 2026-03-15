@@ -79,6 +79,13 @@ router.get("/items", async (req, res) => {
 
 		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id`;
 
+		const tsQuery = sql`plainto_tsquery('russian', ${q})`;
+		const fuzzyCondition = sql`
+          word_similarity(${q}, s.name) > 0.3
+          OR word_similarity(${q}, COALESCE(s.manufacturer, '')) > 0.3
+        `;
+		const searchWhere = sql`(s.search_vector @@ ${tsQuery} OR (${fuzzyCondition}))`;
+
 		const [rows, countResult] = await Promise.all([
 			db.execute(sql`
         SELECT
@@ -87,17 +94,20 @@ router.get("/items", async (req, res) => {
           s.category        AS ste_category,
           s.manufacturer    AS ste_manufacturer,
           s.characteristics AS ste_characteristics,
-          ts_rank(s.search_vector, plainto_tsquery('russian', ${q})) AS rank,
+          GREATEST(
+            ts_rank(s.search_vector, ${tsQuery}),
+            word_similarity(${q}, s.name)
+          ) AS rank,
           COALESCE(
             array_agg(DISTINCT ci.id) FILTER (WHERE ci.id IS NOT NULL),
             '{}'
           ) AS contract_item_ids
         FROM ste s
         ${contractJoin}
-        WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
+        WHERE ${searchWhere}
           ${steWhere}
           ${contractWhere}
-        GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, rank
+        GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics
         ORDER BY rank DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
@@ -105,7 +115,7 @@ router.get("/items", async (req, res) => {
         SELECT count(DISTINCT s.id)::int AS count
         FROM ste s
         ${contractJoin}
-        WHERE s.search_vector @@ plainto_tsquery('russian', ${q})
+        WHERE ${searchWhere}
           ${steWhere}
           ${contractWhere}
       `),
