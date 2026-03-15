@@ -148,6 +148,124 @@ router.get("/items", async (req, res) => {
 	}
 });
 
+// GET /search/items-trigram?q=...&page=1&limit=50&supplier_region=...&period_from=YYYY-MM-DD&period_to=YYYY-MM-DD&category=...&procurement_method=...
+// Аналог /search/items, но использует триграммный поиск (pg_trgm) вместо полнотекстового
+router.get("/items-trigram", async (req, res) => {
+	try {
+		const q = (req.query.q as string)?.trim();
+		if (!q) return res.status(400).json({ error: "q parameter required" });
+		if (q.length < 3)
+			return res.status(400).json({ error: "q must be at least 3 characters" });
+
+		const page = Math.max(1, parseInt(req.query.page as string) || 1);
+		const limit = Math.min(
+			200,
+			Math.max(1, parseInt(req.query.limit as string) || 50),
+		);
+		const offset = (page - 1) * limit;
+
+		const supplierRegions = parseMultiParam(req.query.supplier_region);
+		const periodFrom = (req.query.period_from as string) || null;
+		const periodTo = (req.query.period_to as string) || null;
+		const categories = parseMultiParam(req.query.category);
+		const procurementMethods = parseMultiParam(req.query.procurement_method);
+
+		const categoryWhere = categories
+			? sql` AND ${inCondition(sql`s.category`, categories)}`
+			: sql``;
+
+		const searchWhere = sql`word_similarity(${q}, s.name) > 0.1${categoryWhere}`;
+
+		const priceFilterConditions: SQL[] = [];
+		if (supplierRegions)
+			priceFilterConditions.push(
+				inCondition(sql`c.supplier_region`, supplierRegions),
+			);
+		if (periodFrom)
+			priceFilterConditions.push(
+				sql`c.contract_signing_date >= ${periodFrom}::date`,
+			);
+		if (periodTo)
+			priceFilterConditions.push(
+				sql`c.contract_signing_date <= ${periodTo}::date`,
+			);
+		if (procurementMethods)
+			priceFilterConditions.push(
+				inCondition(sql`c.procurement_method`, procurementMethods),
+			);
+
+		const priceFilterWhere =
+			priceFilterConditions.length > 0
+				? sql` AND ${sql.join(priceFilterConditions, sql` AND `)}`
+				: sql``;
+
+		const [rows, countResult] = await Promise.all([
+			db.execute(sql`
+        WITH matching AS (
+          SELECT s.id
+          FROM ste s
+          WHERE ${searchWhere}
+        ),
+        ste_prices AS (
+          SELECT ci.ste_id, ci.unit_price
+          FROM contract_items ci
+          JOIN contracts c ON c.id = ci.contract_id
+          WHERE ci.ste_id IN (SELECT id FROM matching)
+            AND ci.unit_price IS NOT NULL
+            ${priceFilterWhere}
+        ),
+        ste_iqr AS (
+          SELECT
+            ste_id,
+            percentile_cont(0.25) WITHIN GROUP (ORDER BY unit_price) AS q1,
+            percentile_cont(0.75) WITHIN GROUP (ORDER BY unit_price) AS q3
+          FROM ste_prices
+          GROUP BY ste_id
+        ),
+        ste_suggested AS (
+          SELECT sp.ste_id, COUNT(*) AS suggested_count
+          FROM ste_prices sp
+          JOIN ste_iqr iq ON iq.ste_id = sp.ste_id
+          WHERE sp.unit_price >= (iq.q1 - 1.5 * (iq.q3 - iq.q1))
+            AND sp.unit_price <= (iq.q3 + 1.5 * (iq.q3 - iq.q1))
+          GROUP BY sp.ste_id
+        )
+        SELECT
+          s.id              AS ste_id,
+          s.name            AS ste_name,
+          s.category        AS ste_category,
+          s.manufacturer    AS ste_manufacturer,
+          s.characteristics AS ste_characteristics,
+          CASE WHEN lower(s.name) = lower(${q}) THEN 1 ELSE 0 END AS exact_match,
+          word_similarity(${q}, s.name) AS name_rank,
+          word_similarity(${q}, s.name) AS rank,
+          COALESCE(ss.suggested_count, 0) AS suggested_items_count,
+          COALESCE(
+            array_agg(DISTINCT ci.id) FILTER (WHERE ci.id IS NOT NULL),
+            '{}'
+          ) AS contract_item_ids
+        FROM ste s
+        LEFT JOIN contract_items ci ON ci.ste_id = s.id
+        LEFT JOIN ste_suggested ss ON ss.ste_id = s.id
+        WHERE ${searchWhere}
+        GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, ss.suggested_count
+        ORDER BY exact_match DESC, name_rank DESC, suggested_items_count DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+			db.execute(sql`
+        SELECT count(DISTINCT s.id)::int AS count
+        FROM ste s
+        WHERE ${searchWhere}
+      `),
+		]);
+
+		const total = (countResult.rows[0] as { count: number }).count;
+		res.json({ data: rows.rows, total, page, limit });
+	} catch (err) {
+		res.status(500).json({ error: String(err) });
+	}
+});
+
 // GET /search/ai-items?q=...
 // Принимает queryText, запрашивает AI-сервис (localhost:8000/search), берёт СТЕ с точно совпадающим названием
 // Возвращает ответ в том же формате, что и /search/items

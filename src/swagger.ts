@@ -797,6 +797,79 @@ export const swaggerDocument: OpenAPIV3.Document = {
 				},
 			},
 		},
+		"/search/items-trigram": {
+			get: {
+				tags: ["Search"],
+				summary: "Триграммный поиск СТЕ (pg_trgm)",
+				parameters: paginatedQuery([
+					{
+						name: "q",
+						in: "query",
+						required: true,
+						description: "Поисковый запрос",
+						schema: { type: "string", example: "мешок мусорный 20 литров" },
+					},
+					{
+						name: "category",
+						in: "query",
+						required: false,
+						description: "Фильтр по категории СТЕ — ограничивает выдачу (можно несколько: ?category=A&category=B)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+					{
+						name: "supplier_region",
+						in: "query",
+						required: false,
+						description: "Фильтр по региону поставщика — влияет на расчёт suggested_items_count (можно несколько)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+					{
+						name: "period_from",
+						in: "query",
+						required: false,
+						description: "Начало периода подписания контракта (YYYY-MM-DD) — влияет на расчёт suggested_items_count",
+						schema: { type: "string", format: "date" },
+					},
+					{
+						name: "period_to",
+						in: "query",
+						required: false,
+						description: "Конец периода подписания контракта (YYYY-MM-DD) — влияет на расчёт suggested_items_count",
+						schema: { type: "string", format: "date" },
+					},
+					{
+						name: "procurement_method",
+						in: "query",
+						required: false,
+						description: "Фильтр по способу закупки — влияет на расчёт suggested_items_count (можно несколько)",
+						explode: true,
+						schema: { type: "array", items: { type: "string" } },
+					},
+				]),
+				responses: {
+					"200": {
+						description: "OK",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										data: { type: "array", items: { $ref: "#/components/schemas/SearchSteGroup" } },
+										total: { type: "integer" },
+										page: { type: "integer" },
+										limit: { type: "integer" },
+									},
+								},
+							},
+						},
+					},
+					"400": errorResponse,
+					"500": errorResponse,
+				},
+			},
+		},
 		"/search/ste/{steId}/contracts": {
 			get: {
 				tags: ["Search"],
