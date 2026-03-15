@@ -26,6 +26,7 @@ router.get("/items", async (req, res) => {
 	try {
 		const q = (req.query.q as string)?.trim();
 		if (!q) return res.status(400).json({ error: "q parameter required" });
+		if (q.length < 3) return res.status(400).json({ error: "q must be at least 3 characters" });
 
 		const page = Math.max(1, parseInt(req.query.page as string) || 1);
 		const limit = Math.min(
@@ -69,22 +70,21 @@ router.get("/items", async (req, res) => {
 				? sql` AND ${sql.join(steExtraConditions, sql` AND `)}`
 				: sql``;
 
-		// Contract filters go into WHERE when present.
-		// This keeps STEs without contracts when no filters are set,
-		// and limits results to matching contracts when filters are set.
-		const contractWhere =
+		// Contract filters go into JOIN so STEs without matching contracts are still returned,
+		// but contract_item_ids will only contain items that satisfy the filters.
+		const contractJoinCondition =
 			contractConditions.length > 0
 				? sql` AND ${sql.join(contractConditions, sql` AND `)}`
 				: sql``;
 
-		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id`;
+		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id${contractJoinCondition}`;
 
 		const tsQuery = sql`plainto_tsquery('russian', ${q})`;
-		const fuzzyCondition = sql`
-          word_similarity(${q}, s.name) > 0.3
-          OR word_similarity(${q}, COALESCE(s.manufacturer, '')) > 0.3
-        `;
-		const searchWhere = sql`(s.search_vector @@ ${tsQuery} OR (${fuzzyCondition}))`;
+		// const fuzzyCondition = sql`
+		//   word_similarity(${q}, s.name) > 0.95
+		//   OR word_similarity(${q}, COALESCE(s.manufacturer, '')) > 0.3
+		// `;
+		const searchWhere = sql`s.search_vector @@ ${tsQuery}`;
 
 		const [rows, countResult] = await Promise.all([
 			db.execute(sql`
@@ -94,10 +94,8 @@ router.get("/items", async (req, res) => {
           s.category        AS ste_category,
           s.manufacturer    AS ste_manufacturer,
           s.characteristics AS ste_characteristics,
-          GREATEST(
-            ts_rank(s.search_vector, ${tsQuery}),
-            word_similarity(${q}, s.name)
-          ) AS rank,
+          CASE WHEN lower(s.name) = lower(${q}) THEN 1 ELSE 0 END AS exact_match,
+          ts_rank(s.search_vector, ${tsQuery}) AS rank,
           COALESCE(
             array_agg(DISTINCT ci.id) FILTER (WHERE ci.id IS NOT NULL),
             '{}'
@@ -106,18 +104,15 @@ router.get("/items", async (req, res) => {
         ${contractJoin}
         WHERE ${searchWhere}
           ${steWhere}
-          ${contractWhere}
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics
-        ORDER BY rank DESC
+        ORDER BY exact_match DESC, rank DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
 			db.execute(sql`
         SELECT count(DISTINCT s.id)::int AS count
         FROM ste s
-        ${contractJoin}
         WHERE ${searchWhere}
           ${steWhere}
-          ${contractWhere}
       `),
 		]);
 

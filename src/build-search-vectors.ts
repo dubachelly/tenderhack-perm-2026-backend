@@ -7,9 +7,11 @@ async function main() {
   await db.execute(sql`
     UPDATE ste SET search_vector =
       setweight(to_tsvector('russian', coalesce(name, '')), 'A') ||
+      setweight(to_tsvector('russian', coalesce(manufacturer, '')), 'B') ||
+      setweight(to_tsvector('russian', coalesce(category, '')), 'C') ||
       setweight(to_tsvector('russian',
         coalesce(replace(replace(characteristics, ':', ' '), ';', ' '), '')
-      ), 'B')
+      ), 'D')
   `);
   console.log("Done!");
   await pool.end();
