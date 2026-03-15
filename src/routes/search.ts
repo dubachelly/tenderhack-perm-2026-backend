@@ -113,7 +113,14 @@ router.get("/items", async (req, res) => {
           s.manufacturer    AS ste_manufacturer,
           s.characteristics AS ste_characteristics,
           CASE WHEN lower(s.name) = lower(${q}) THEN 1 ELSE 0 END AS exact_match,
-          ts_rank(s.search_vector, ${tsQuery}) AS rank,
+          ts_rank(to_tsvector('russian', s.name), ${tsQuery}, 2) AS name_rank,
+          ts_rank(
+            setweight(to_tsvector('russian', s.name), 'A') ||
+            setweight(to_tsvector('russian', COALESCE(s.manufacturer, '')), 'B') ||
+            setweight(to_tsvector('russian', COALESCE(s.characteristics, '')), 'C') ||
+            setweight(to_tsvector('russian', COALESCE(s.category, '')), 'D'),
+            ${tsQuery}
+          ) AS rank,
           COALESCE(ss.suggested_count, 0) AS suggested_items_count,
           COALESCE(
             array_agg(DISTINCT ci.id) FILTER (WHERE ci.id IS NOT NULL),
@@ -124,7 +131,7 @@ router.get("/items", async (req, res) => {
         LEFT JOIN ste_suggested ss ON ss.ste_id = s.id
         WHERE ${searchWhere}
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics, ss.suggested_count
-        ORDER BY exact_match DESC, suggested_items_count DESC, rank DESC
+        ORDER BY exact_match DESC, name_rank DESC, rank DESC, suggested_items_count DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
 			db.execute(sql`
@@ -163,8 +170,6 @@ router.get("/ai-items", async (req, res) => {
 
 		const aiData = (await aiResponse.json()) as unknown;
 
-		console.log({ aiData });
-
 		let names: string[] = [];
 		if (Array.isArray(aiData)) {
 			names = (aiData as Array<Record<string, unknown>>)
@@ -180,7 +185,6 @@ router.get("/ai-items", async (req, res) => {
 			names = (list as Array<Record<string, unknown>>)
 				.map((item) => item.title as string)
 				.filter((n): n is string => typeof n === "string" && n.length > 0);
-			console.log({ names });
 		}
 
 		if (names.length === 0) {
