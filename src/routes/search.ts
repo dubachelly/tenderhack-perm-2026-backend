@@ -21,7 +21,7 @@ function inCondition(column: SQL, values: string[]): SQL {
 
 // GET /search/items?q=...&page=1&limit=50&supplier_region=...&period_from=YYYY-MM-DD&period_to=YYYY-MM-DD&category=...&procurement_method=...
 // Параметры category, supplier_region, procurement_method поддерживают несколько значений (?category=A&category=B)
-// Возвращает список всех СТЕ по запросу (включая без контрактов), contract_item_ids — массив id позиций контрактов
+// Возвращает СТЕ, у которых есть хотя бы один контракт, удовлетворяющий фильтрам. contract_item_ids — массив id позиций контрактов
 router.get("/items", async (req, res) => {
 	try {
 		const q = (req.query.q as string)?.trim();
@@ -70,14 +70,12 @@ router.get("/items", async (req, res) => {
 				? sql` AND ${sql.join(steExtraConditions, sql` AND `)}`
 				: sql``;
 
-		// Contract filters go into JOIN so STEs without matching contracts are still returned,
-		// but contract_item_ids will only contain items that satisfy the filters.
-		const contractJoinCondition =
+		const contractWhere =
 			contractConditions.length > 0
 				? sql` AND ${sql.join(contractConditions, sql` AND `)}`
 				: sql``;
 
-		const contractJoin = sql`LEFT JOIN contract_items ci ON ci.ste_id = s.id LEFT JOIN contracts c ON c.id = ci.contract_id${contractJoinCondition}`;
+		const contractJoin = sql`JOIN contract_items ci ON ci.ste_id = s.id JOIN contracts c ON c.id = ci.contract_id`;
 
 		const tsQuery = sql`plainto_tsquery('russian', ${q})`;
 		// const fuzzyCondition = sql`
@@ -104,6 +102,7 @@ router.get("/items", async (req, res) => {
         ${contractJoin}
         WHERE ${searchWhere}
           ${steWhere}
+          ${contractWhere}
         GROUP BY s.id, s.name, s.category, s.manufacturer, s.characteristics
         ORDER BY exact_match DESC, rank DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -111,8 +110,11 @@ router.get("/items", async (req, res) => {
 			db.execute(sql`
         SELECT count(DISTINCT s.id)::int AS count
         FROM ste s
+        JOIN contract_items ci ON ci.ste_id = s.id
+        JOIN contracts c ON c.id = ci.contract_id
         WHERE ${searchWhere}
           ${steWhere}
+          ${contractWhere}
       `),
 		]);
 
