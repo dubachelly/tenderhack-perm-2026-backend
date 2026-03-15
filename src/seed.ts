@@ -70,6 +70,16 @@ function num(value: unknown): string | null {
   return isNaN(n) ? null : String(n);
 }
 
+function parseVatRate(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  if (/без\s*ндс/i.test(s)) return null;
+  const cleaned = s.replace("%", "").replace(",", ".").trim();
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function seedSte(): Promise<Set<number>> {
   console.log("Reading СТЕ xlsx...");
   const wb = XLSX.readFile(path.join(DATA_DIR, "TenderHack_СТЕ_20260313.xlsx"), {
@@ -143,7 +153,7 @@ async function seedContracts(validSteIds: Set<number>) {
         initialContractValue: num(r[5]),
         contractValueAfterSigning: num(r[6]),
         reductionPercent: num(r[7]),
-        vatRate: str(r[8])?.slice(0, 20) ?? null,
+        vatRate: parseVatRate(r[8]),
         contractSigningDate: parseExcelDate(r[9]),
         buyerInn: str(r[10])?.slice(0, 12) ?? null,
         buyerRegion: str(r[11]),

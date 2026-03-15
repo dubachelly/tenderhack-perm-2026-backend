@@ -51,6 +51,16 @@ function num(value: unknown): string | null {
   return isNaN(n) ? null : String(n);
 }
 
+function parseVatRate(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  if (/без\s*ндс/i.test(s)) return null;
+  const cleaned = s.replace("%", "").replace(",", ".").trim();
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
 // ─── Нормализация для сравнения ───────────────────────────────────────────────
 
 function normalizeNum(v: unknown): number | null {
@@ -204,7 +214,7 @@ async function testContracts(): Promise<Stats> {
     initialContractValue: string | null;
     contractValueAfterSigning: string | null;
     reductionPercent: string | null;
-    vatRate: string | null;
+    vatRate: number | null;
     contractSigningDate: Date | null;
     buyerInn: string | null;
     buyerRegion: string | null;
@@ -224,7 +234,7 @@ async function testContracts(): Promise<Stats> {
       initialContractValue: num(r[5]),
       contractValueAfterSigning: num(r[6]),
       reductionPercent: num(r[7]),
-      vatRate: str(r[8])?.slice(0, 20) ?? null,
+      vatRate: parseVatRate(r[8]),
       contractSigningDate: parseExcelDate(r[9]),
       buyerInn: str(r[10])?.slice(0, 12) ?? null,
       buyerRegion: str(r[11]),
@@ -263,8 +273,8 @@ async function testContracts(): Promise<Stats> {
       mismatched.push(`contractValueAfterSigning: xlsx=${x.contractValueAfterSigning} | pg=${p.contractValueAfterSigning}`);
     if (!numsEqual(x.reductionPercent, p.reductionPercent, 5))
       mismatched.push(`reductionPercent: xlsx=${x.reductionPercent} | pg=${p.reductionPercent}`);
-    if (!strsEqual(x.vatRate, p.vatRate))
-      mismatched.push(`vatRate: xlsx="${x.vatRate}" | pg="${p.vatRate}"`);
+    if (!numsEqual(x.vatRate, p.vatRate, 5))
+      mismatched.push(`vatRate: xlsx=${x.vatRate} | pg=${p.vatRate}`);
     if (!datesEqual(x.contractSigningDate, p.contractSigningDate))
       mismatched.push(
         `contractSigningDate: xlsx=${x.contractSigningDate?.toISOString()} | pg=${p.contractSigningDate?.toISOString()}`
