@@ -129,6 +129,29 @@ router.get("/:id", async (req, res) => {
 	}
 });
 
+// PATCH /applications/:id
+router.patch("/:id", async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+		const { name } = req.body as { name?: string };
+		if (!name || !name.trim())
+			return res.status(400).json({ error: "name is required" });
+
+		const [updated] = await db
+			.update(applications)
+			.set({ name: name.trim() })
+			.where(eq(applications.id, id))
+			.returning();
+
+		if (!updated) return res.status(404).json({ error: "Not found" });
+		res.json(updated);
+	} catch (err) {
+		res.status(500).json({ error: String(err) });
+	}
+});
+
 // DELETE /applications/:id
 router.delete("/:id", async (req, res) => {
 	try {

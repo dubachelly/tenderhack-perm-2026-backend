@@ -384,6 +384,43 @@ export const swaggerDocument: OpenAPIV3.Document = {
 					"500": errorResponse,
 				},
 			},
+			patch: {
+				tags: ["Applications"],
+				summary: "Изменить название заявки",
+				parameters: [
+					{
+						name: "id",
+						in: "path",
+						required: true,
+						schema: { type: "integer" },
+					},
+				],
+				requestBody: {
+					required: true,
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["name"],
+								properties: { name: { type: "string" } },
+							},
+						},
+					},
+				},
+				responses: {
+					"200": {
+						description: "Обновлённая заявка",
+						content: {
+							"application/json": {
+								schema: { $ref: "#/components/schemas/Application" },
+							},
+						},
+					},
+					"400": errorResponse,
+					"404": errorResponse,
+					"500": errorResponse,
+				},
+			},
 			delete: {
 				tags: ["Applications"],
 				summary: "Удалить заявку (каскад)",
